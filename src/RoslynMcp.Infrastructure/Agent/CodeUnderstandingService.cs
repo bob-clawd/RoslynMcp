@@ -811,11 +811,11 @@ public sealed class CodeUnderstandingService : ICodeUnderstandingService
             return new ListDependenciesResult(
                 Array.Empty<ProjectDependency>(),
                 0,
-                AgentErrorInfo.Normalize(solutionError, "Call load_solution first to list dependencies."));
+                AgentErrorInfo.Normalize(solutionError, "Call load_solution first to list dependencies."),
+                Array.Empty<ProjectDependencyEdge>());
         }
 
-        var normalizedDirection = request.Direction?.ToLowerInvariant() ?? "both";
-        if (normalizedDirection is not "outgoing" and not "incoming" and not "both")
+        if (!TryNormalizeDependencyDirection(request.Direction, out var direction))
         {
             return new ListDependenciesResult(
                 Array.Empty<ProjectDependency>(),
@@ -825,21 +825,15 @@ public sealed class CodeUnderstandingService : ICodeUnderstandingService
                     $"direction '{request.Direction}' is not valid.",
                     "Use 'outgoing', 'incoming', or 'both'.",
                     ("field", "direction"),
-                    ("provided", request.Direction)));
+                    ("provided", request.Direction ?? string.Empty)),
+                Array.Empty<ProjectDependencyEdge>());
         }
-        var direction = normalizedDirection;
 
-        // Select target project
-        Project? targetProject = null;
-        bool selectorProvided = false;
-        string? selectorField = null;
-        string? selectorValue = null;
-
-        // Check for multiple selectors
         var hasProjectPath = !string.IsNullOrWhiteSpace(request.ProjectPath);
         var hasProjectName = !string.IsNullOrWhiteSpace(request.ProjectName);
         var hasProjectId = !string.IsNullOrWhiteSpace(request.ProjectId);
         var selectorCount = (hasProjectPath ? 1 : 0) + (hasProjectName ? 1 : 0) + (hasProjectId ? 1 : 0);
+        var selectorProvided = selectorCount == 1;
 
         if (selectorCount > 1)
         {
@@ -850,74 +844,67 @@ public sealed class CodeUnderstandingService : ICodeUnderstandingService
                     ErrorCodes.InvalidInput,
                     "Multiple project selectors provided. Provide exactly one of projectPath, projectName, or projectId.",
                     "Specify only one selector to identify the target project.",
-                    ("selectors", $"projectPath:{hasProjectPath}, projectName:{hasProjectName}, projectId:{hasProjectId}")));
+                    ("selectors", $"projectPath:{hasProjectPath}, projectName:{hasProjectName}, projectId:{hasProjectId}")),
+                Array.Empty<ProjectDependencyEdge>());
         }
 
-        if (hasProjectPath)
+        var normalizedProjectName = NormalizeOptional(request.ProjectName);
+        if (normalizedProjectName != null)
         {
-            selectorProvided = true;
-            selectorField = "projectPath";
-            selectorValue = request.ProjectPath;
-            targetProject = solution.Projects.FirstOrDefault(p =>
-                string.Equals(p.FilePath, request.ProjectPath, StringComparison.OrdinalIgnoreCase));
-        }
-        else if (hasProjectName)
-        {
-            selectorProvided = true;
-            selectorField = "projectName";
-            selectorValue = request.ProjectName;
-            var matchingByName = solution.Projects.Where(p => p.Name.Equals(request.ProjectName, StringComparison.OrdinalIgnoreCase)).ToList();
-            if (matchingByName.Count > 1)
+            var matchingByName = solution.Projects
+                .Where(p => string.Equals(p.Name, normalizedProjectName, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            if (matchingByName.Length > 1)
             {
                 return new ListDependenciesResult(
                     Array.Empty<ProjectDependency>(),
                     0,
                     AgentErrorInfo.Create(
                         ErrorCodes.AmbiguousSymbol,
-                        $"projectName '{request.ProjectName}' matched {matchingByName.Count} projects.",
+                        $"projectName '{request.ProjectName}' matched {matchingByName.Length} projects.",
                         "Use projectPath or projectId to disambiguate.",
                         ("field", "projectName"),
-                        ("provided", request.ProjectName),
-                        ("matchingCount", matchingByName.Count.ToString())));
+                        ("provided", normalizedProjectName),
+                        ("matchingCount", matchingByName.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))),
+                    Array.Empty<ProjectDependencyEdge>());
             }
-            targetProject = matchingByName.FirstOrDefault();
-        }
-        else if (hasProjectId)
-        {
-            selectorProvided = true;
-            selectorField = "projectId";
-            selectorValue = request.ProjectId;
-            targetProject = solution.Projects.FirstOrDefault(p => string.Equals(p.Id.Id.ToString(), request.ProjectId, StringComparison.OrdinalIgnoreCase));
         }
 
-        // Return error if selector provided but project not found
-        if (selectorProvided && targetProject == null)
+        var selectedProjects = ResolveProjectSelector(
+            solution,
+            request.ProjectPath,
+            request.ProjectName,
+            request.ProjectId,
+            selectorRequired: false,
+            toolName: "list_dependencies",
+            out var selectorError);
+
+        if (selectorProvided && selectorError != null)
         {
             return new ListDependenciesResult(
                 Array.Empty<ProjectDependency>(),
                 0,
-                AgentErrorInfo.Create(
-                    ErrorCodes.InvalidInput,
-                    $"{selectorField} '{selectorValue}' did not match any project in the solution.",
-                    "Verify the selector value from load_solution output and try again.",
-                    ("field", selectorField),
-                    ("provided", selectorValue)));
+                selectorError,
+                Array.Empty<ProjectDependencyEdge>());
         }
 
-        var dependencies = new List<ProjectDependency>();
+        var targetProject = selectorProvided ? selectedProjects[0] : null;
+        var edgeByKey = new Dictionary<string, ProjectDependencyEdge>(StringComparer.Ordinal);
+        var dependencyById = new Dictionary<string, ProjectDependency>(StringComparer.Ordinal);
 
         if (targetProject != null)
         {
-            // Specific project selected
             if (direction == "outgoing" || direction == "both")
             {
-                foreach (var reference in targetProject.ProjectReferences)
+                foreach (var reference in targetProject.ProjectReferences.OrderBy(static r => r.ProjectId.Id.ToString(), StringComparer.Ordinal))
                 {
-                    var refProject = solution.Projects.FirstOrDefault(p => p.Id == reference.ProjectId);
-                    if (refProject != null)
+                    var dependencyProject = solution.GetProject(reference.ProjectId);
+                    if (dependencyProject == null)
                     {
-                        dependencies.Add(new ProjectDependency(refProject.Name, refProject.Id.Id.ToString()));
+                        continue;
                     }
+
+                    AddDependencyEdge(targetProject, dependencyProject, edgeByKey, dependencyById, counterpart: dependencyProject);
                 }
             }
 
@@ -927,48 +914,76 @@ public sealed class CodeUnderstandingService : ICodeUnderstandingService
                 {
                     if (project.ProjectReferences.Any(r => r.ProjectId == targetProject.Id))
                     {
-                        dependencies.Add(new ProjectDependency(project.Name, project.Id.Id.ToString()));
+                        AddDependencyEdge(project, targetProject, edgeByKey, dependencyById, counterpart: project);
                     }
                 }
             }
         }
         else
         {
-            // No specific project - return all dependencies as a graph
+            var allReferenceEdges = new List<(Project Source, Project Target)>();
+            foreach (var project in solution.Projects)
+            {
+                foreach (var reference in project.ProjectReferences)
+                {
+                    var dependencyProject = solution.GetProject(reference.ProjectId);
+                    if (dependencyProject != null)
+                    {
+                        allReferenceEdges.Add((project, dependencyProject));
+                    }
+                }
+            }
+
             if (direction == "outgoing" || direction == "both")
             {
-                foreach (var project in solution.Projects)
+                foreach (var (source, target) in allReferenceEdges)
                 {
-                    foreach (var reference in project.ProjectReferences)
-                    {
-                        var refProject = solution.Projects.FirstOrDefault(p => p.Id == reference.ProjectId);
-                        if (refProject != null)
-                        {
-                            dependencies.Add(new ProjectDependency(refProject.Name, refProject.Id.Id.ToString()));
-                        }
-                    }
+                    AddDependencyEdge(source, target, edgeByKey, dependencyById, counterpart: target);
                 }
             }
 
             if (direction == "incoming" || direction == "both")
             {
-                // For incoming without a target, show incoming for all projects
-                foreach (var project in solution.Projects)
+                foreach (var (source, target) in allReferenceEdges)
                 {
-                    var incoming = solution.Projects.Where(p => p.ProjectReferences.Any(r => r.ProjectId == project.Id));
-                    foreach (var dep in incoming)
-                    {
-                        dependencies.Add(new ProjectDependency(dep.Name, dep.Id.Id.ToString()));
-                    }
+                    AddDependencyEdge(target, source, edgeByKey, dependencyById, counterpart: source);
                 }
             }
         }
 
-        // Remove duplicates
-        var uniqueDeps = dependencies.Distinct().ToList();
+        var orderedEdges = edgeByKey.Values
+            .OrderBy(static edge => edge.Source.ProjectName, StringComparer.Ordinal)
+            .ThenBy(static edge => edge.Source.ProjectId, StringComparer.Ordinal)
+            .ThenBy(static edge => edge.Target.ProjectName, StringComparer.Ordinal)
+            .ThenBy(static edge => edge.Target.ProjectId, StringComparer.Ordinal)
+            .ToArray();
 
-        return new ListDependenciesResult(uniqueDeps, uniqueDeps.Count, null);
+        var dependencies = dependencyById.Values
+            .OrderBy(static dependency => dependency.ProjectName, StringComparer.Ordinal)
+            .ThenBy(static dependency => dependency.ProjectId, StringComparer.Ordinal)
+            .ToArray();
+
+        return new ListDependenciesResult(dependencies, dependencies.Length, null, orderedEdges);
     }
+
+    private static void AddDependencyEdge(
+        Project source,
+        Project target,
+        IDictionary<string, ProjectDependencyEdge> edgeByKey,
+        IDictionary<string, ProjectDependency> dependencyById,
+        Project counterpart)
+    {
+        var sourceDependency = ToProjectDependency(source);
+        var targetDependency = ToProjectDependency(target);
+        var edgeKey = $"{sourceDependency.ProjectId}->{targetDependency.ProjectId}";
+        edgeByKey[edgeKey] = new ProjectDependencyEdge(sourceDependency, targetDependency);
+
+        var counterpartDependency = ToProjectDependency(counterpart);
+        dependencyById[counterpartDependency.ProjectId] = counterpartDependency;
+    }
+
+    private static ProjectDependency ToProjectDependency(Project project)
+        => new(project.Name, project.Id.Id.ToString());
 
     private static async Task<ResolveSymbolCandidate[]> ResolveByQualifiedNameAsync(
         string qualifiedName,
@@ -1337,6 +1352,12 @@ public sealed class CodeUnderstandingService : ICodeUnderstandingService
 
         normalized = null;
         return false;
+    }
+
+    private static bool TryNormalizeDependencyDirection(string? direction, out string normalized)
+    {
+        normalized = NormalizeOptional(direction)?.ToLowerInvariant() ?? "both";
+        return normalized is "outgoing" or "incoming" or "both";
     }
 
     private static string NormalizeNamespace(INamespaceSymbol? ns)

@@ -1,5 +1,7 @@
 using RoslynMcp.Core.Contracts;
 using RoslynMcp.Core.Models.Agent;
+using RoslynMcp.Core.Models.Common;
+using RoslynMcp.Core.Models.Navigation;
 using RoslynMcp.McpServer.Tools;
 using Is.Assertions;
 
@@ -23,6 +25,8 @@ public sealed class AgentIntentToolRoutingTests
         var resolve = new ResolveSymbolTools(understanding);
         var trace = new TraceFlowTools(flow);
         var modification = new CodeSmellTools(discovery);
+        var listDependencies = new ListDependenciesTools(understanding);
+        var findUsages = new FindUsagesTools(understanding.Navigation);
 
         await workspace.LoadSolutionAsync(CancellationToken.None, "  ./sample.sln  ");
         await understand.UnderstandCodebaseAsync(CancellationToken.None, "  deep  ");
@@ -32,6 +36,9 @@ public sealed class AgentIntentToolRoutingTests
         await resolve.ResolveSymbolAsync(CancellationToken.None, "  sym  ", "  a.cs  ", -1, 0, "  Sample.Service.Call  ", "  Sample.csproj  ", " SampleProject ", " abc ");
         await trace.TraceFlowAsync(CancellationToken.None, "  sym  ", "  a.cs  ", -1, 0, "  BOTH  ", -9);
         await modification.FindCodeSmellsAsync("  app.cs  ", CancellationToken.None);
+        await listDependencies.ListDependenciesAsync(CancellationToken.None, "  /repo/app.csproj  ", "  App  ", "  id-1  ", "  BOTH  ");
+        await findUsages.FindUsagesAsync(CancellationToken.None, "  sym  ");
+        await findUsages.FindUsagesScopedAsync(CancellationToken.None, "  sym  ", "  SOLUTION  ", "  a.cs  ");
 
         bootstrap.LastRequest?.SolutionHintPath.Is("./sample.sln");
         understanding.LastUnderstandRequest?.Profile.Is("deep");
@@ -57,6 +64,13 @@ public sealed class AgentIntentToolRoutingTests
         flow.LastRequest?.Direction.Is("both");
         flow.LastRequest?.Depth.Is(0);
         discovery.LastRequest?.Path.Is("app.cs");
+        understanding.LastListDependenciesRequest?.ProjectPath.Is("/repo/app.csproj");
+        understanding.LastListDependenciesRequest?.ProjectName.Is("App");
+        understanding.LastListDependenciesRequest?.ProjectId.Is("id-1");
+        understanding.LastListDependenciesRequest?.Direction.Is("both");
+        understanding.Navigation.LastReferencesRequest?.SymbolId.Is("sym");
+        understanding.Navigation.LastReferencesScopedRequest?.Scope.Is("solution");
+        understanding.Navigation.LastReferencesScopedRequest?.Path.Is("a.cs");
     }
 
     private sealed class RecordingWorkspaceBootstrapService : IWorkspaceBootstrapService
@@ -77,6 +91,8 @@ public sealed class AgentIntentToolRoutingTests
         public ListTypesRequest? LastListTypesRequest { get; private set; }
         public ListMembersRequest? LastListMembersRequest { get; private set; }
         public ResolveSymbolRequest? LastResolveSymbolRequest { get; private set; }
+        public ListDependenciesRequest? LastListDependenciesRequest { get; private set; }
+        public RecordingNavigationService Navigation { get; } = new();
 
         public Task<UnderstandCodebaseResult> UnderstandCodebaseAsync(UnderstandCodebaseRequest request, CancellationToken ct)
         {
@@ -110,8 +126,60 @@ public sealed class AgentIntentToolRoutingTests
 
         public Task<ListDependenciesResult> ListDependenciesAsync(ListDependenciesRequest request, CancellationToken ct)
         {
+            LastListDependenciesRequest = request;
             return Task.FromResult(new ListDependenciesResult(Array.Empty<ProjectDependency>(), 0));
         }
+    }
+
+    private sealed class RecordingNavigationService : INavigationService
+    {
+        public FindReferencesRequest? LastReferencesRequest { get; private set; }
+        public FindReferencesScopedRequest? LastReferencesScopedRequest { get; private set; }
+
+        public Task<FindSymbolResult> FindSymbolAsync(FindSymbolRequest request, CancellationToken ct)
+            => Task.FromResult(new FindSymbolResult(null));
+
+        public Task<GetSymbolAtPositionResult> GetSymbolAtPositionAsync(GetSymbolAtPositionRequest request, CancellationToken ct)
+            => Task.FromResult(new GetSymbolAtPositionResult(null));
+
+        public Task<SearchSymbolsResult> SearchSymbolsAsync(SearchSymbolsRequest request, CancellationToken ct)
+            => Task.FromResult(new SearchSymbolsResult(Array.Empty<SymbolDescriptor>(), 0));
+
+        public Task<SearchSymbolsScopedResult> SearchSymbolsScopedAsync(SearchSymbolsScopedRequest request, CancellationToken ct)
+            => Task.FromResult(new SearchSymbolsScopedResult(Array.Empty<SymbolDescriptor>(), 0));
+
+        public Task<GetSignatureResult> GetSignatureAsync(GetSignatureRequest request, CancellationToken ct)
+            => Task.FromResult(new GetSignatureResult(null, string.Empty));
+
+        public Task<FindReferencesResult> FindReferencesAsync(FindReferencesRequest request, CancellationToken ct)
+        {
+            LastReferencesRequest = request;
+            return Task.FromResult(new FindReferencesResult(null, Array.Empty<SourceLocation>()));
+        }
+
+        public Task<FindReferencesScopedResult> FindReferencesScopedAsync(FindReferencesScopedRequest request, CancellationToken ct)
+        {
+            LastReferencesScopedRequest = request;
+            return Task.FromResult(new FindReferencesScopedResult(null, Array.Empty<SourceLocation>(), 0));
+        }
+
+        public Task<FindImplementationsResult> FindImplementationsAsync(FindImplementationsRequest request, CancellationToken ct)
+            => Task.FromResult(new FindImplementationsResult(null, Array.Empty<SymbolDescriptor>()));
+
+        public Task<GetTypeHierarchyResult> GetTypeHierarchyAsync(GetTypeHierarchyRequest request, CancellationToken ct)
+            => Task.FromResult(new GetTypeHierarchyResult(null, Array.Empty<SymbolDescriptor>(), Array.Empty<SymbolDescriptor>(), Array.Empty<SymbolDescriptor>()));
+
+        public Task<GetSymbolOutlineResult> GetSymbolOutlineAsync(GetSymbolOutlineRequest request, CancellationToken ct)
+            => Task.FromResult(new GetSymbolOutlineResult(null, Array.Empty<SymbolMemberOutline>(), Array.Empty<string>()));
+
+        public Task<GetCallersResult> GetCallersAsync(GetCallersRequest request, CancellationToken ct)
+            => Task.FromResult(new GetCallersResult(null, Array.Empty<CallEdge>()));
+
+        public Task<GetCalleesResult> GetCalleesAsync(GetCalleesRequest request, CancellationToken ct)
+            => Task.FromResult(new GetCalleesResult(null, Array.Empty<CallEdge>()));
+
+        public Task<GetCallGraphResult> GetCallGraphAsync(GetCallGraphRequest request, CancellationToken ct)
+            => Task.FromResult(new GetCallGraphResult(null, Array.Empty<CallEdge>(), 0, 0));
     }
 
     private sealed class RecordingFlowTraceService : IFlowTraceService

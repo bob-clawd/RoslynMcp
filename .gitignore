@@ -15,3 +15,4 @@ TestResults/
 *.DS_Store
 
 tmp/
+docs/

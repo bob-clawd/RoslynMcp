@@ -307,48 +307,14 @@ public sealed class RoslynNavigationService : INavigationService
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
 
-        var invalidInputError = NavigationErrorFactory.TryCreateInvalidSymbolIdError(request.SymbolId, "find-references");
-        if (invalidInputError != null)
-        {
-            return new FindReferencesResult(null, Array.Empty<SourceLocation>(), invalidInputError);
-        }
+        var scopedResult = await FindReferencesCoreAsync(
+            request.SymbolId,
+            ReferenceScopes.Solution,
+            null,
+            operation: "find-references",
+            ct).ConfigureAwait(false);
 
-        try
-        {
-            var (solution, error) = await TryGetSolutionAsync(ct).ConfigureAwait(false);
-            if (solution == null)
-            {
-                return new FindReferencesResult(null, Array.Empty<SourceLocation>(), error);
-            }
-
-            var symbol = await _symbolLookupService.ResolveSymbolAsync(request.SymbolId, solution, ct).ConfigureAwait(false);
-            if (symbol == null)
-            {
-                return new FindReferencesResult(null,
-                    Array.Empty<SourceLocation>(),
-                    NavigationErrorFactory.CreateError(ErrorCodes.SymbolNotFound,
-                        $"Symbol '{request.SymbolId}' could not be resolved.",
-                        ("symbolId", request.SymbolId),
-                        ("operation", "find-references")));
-            }
-
-            var references = await _referenceSearchService.FindReferencesAsync(symbol, solution, ct).ConfigureAwait(false);
-            return new FindReferencesResult(NavigationModelUtilities.CreateDescriptor(symbol), references);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "FindReferences failed for {SymbolId}", request.SymbolId);
-            return new FindReferencesResult(null,
-                Array.Empty<SourceLocation>(),
-                NavigationErrorFactory.CreateError(ErrorCodes.InternalError,
-                    $"Failed to find references '{request.SymbolId}': {ex.Message}",
-                    ("symbolId", request.SymbolId),
-                    ("operation", "find-references")));
-        }
+        return new FindReferencesResult(scopedResult.Symbol, scopedResult.References, scopedResult.Error);
     }
 
     public async Task<FindReferencesScopedResult> FindReferencesScopedAsync(FindReferencesScopedRequest request, CancellationToken ct)
@@ -356,13 +322,28 @@ public sealed class RoslynNavigationService : INavigationService
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
 
-        var invalidSymbolIdError = NavigationErrorFactory.TryCreateInvalidSymbolIdError(request.SymbolId, "find-references-scoped");
+        return await FindReferencesCoreAsync(
+            request.SymbolId,
+            request.Scope,
+            request.Path,
+            operation: "find-references-scoped",
+            ct).ConfigureAwait(false);
+    }
+
+    private async Task<FindReferencesScopedResult> FindReferencesCoreAsync(
+        string symbolId,
+        string scope,
+        string? path,
+        string operation,
+        CancellationToken ct)
+    {
+        var invalidSymbolIdError = NavigationErrorFactory.TryCreateInvalidSymbolIdError(symbolId, operation);
         if (invalidSymbolIdError != null)
         {
             return new FindReferencesScopedResult(null, Array.Empty<SourceLocation>(), 0, invalidSymbolIdError);
         }
 
-        if (!_referenceSearchService.IsValidScope(request.Scope))
+        if (!_referenceSearchService.IsValidScope(scope))
         {
             return new FindReferencesScopedResult(null,
                 Array.Empty<SourceLocation>(),
@@ -370,11 +351,11 @@ public sealed class RoslynNavigationService : INavigationService
                 NavigationErrorFactory.CreateError(ErrorCodes.InvalidRequest,
                     "scope must be one of: document, project, solution.",
                     ("parameter", "scope"),
-                    ("operation", "find-references-scoped")));
+                    ("operation", operation)));
         }
 
-        if (string.Equals(request.Scope, ReferenceScopes.Document, StringComparison.Ordinal) &&
-            string.IsNullOrWhiteSpace(request.Path))
+        if (string.Equals(scope, ReferenceScopes.Document, StringComparison.Ordinal) &&
+            string.IsNullOrWhiteSpace(path))
         {
             return new FindReferencesScopedResult(null,
                 Array.Empty<SourceLocation>(),
@@ -382,7 +363,7 @@ public sealed class RoslynNavigationService : INavigationService
                 NavigationErrorFactory.CreateError(ErrorCodes.InvalidRequest,
                     "path is required when scope is document.",
                     ("parameter", "path"),
-                    ("operation", "find-references-scoped")));
+                    ("operation", operation)));
         }
 
         try
@@ -393,7 +374,7 @@ public sealed class RoslynNavigationService : INavigationService
                 return new FindReferencesScopedResult(null, Array.Empty<SourceLocation>(), 0, error);
             }
 
-            var (symbol, ownerProject) = await _symbolLookupService.ResolveSymbolWithProjectAsync(request.SymbolId, solution, ct)
+            var (symbol, ownerProject) = await _symbolLookupService.ResolveSymbolWithProjectAsync(symbolId, solution, ct)
                 .ConfigureAwait(false);
             if (symbol == null)
             {
@@ -401,14 +382,14 @@ public sealed class RoslynNavigationService : INavigationService
                     Array.Empty<SourceLocation>(),
                     0,
                     NavigationErrorFactory.CreateError(ErrorCodes.SymbolNotFound,
-                        $"Symbol '{request.SymbolId}' could not be resolved.",
-                        ("symbolId", request.SymbolId),
-                        ("operation", "find-references-scoped")));
+                        $"Symbol '{symbolId}' could not be resolved.",
+                        ("symbolId", symbolId),
+                        ("operation", operation)));
             }
 
-            if (string.Equals(request.Scope, ReferenceScopes.Document, StringComparison.Ordinal))
+            if (string.Equals(scope, ReferenceScopes.Document, StringComparison.Ordinal))
             {
-                var pathError = _referenceSearchService.TryValidateDocumentPath(request.Path!, solution);
+                var pathError = _referenceSearchService.TryValidateDocumentPath(path!, solution);
                 if (pathError != null)
                 {
                     return new FindReferencesScopedResult(null, Array.Empty<SourceLocation>(), 0, pathError);
@@ -416,7 +397,7 @@ public sealed class RoslynNavigationService : INavigationService
             }
 
             var references = await _referenceSearchService
-                .FindReferencesScopedAsync(symbol, solution, request.Scope, request.Path, ownerProject, ct)
+                .FindReferencesScopedAsync(symbol, solution, scope, path, ownerProject, ct)
                 .ConfigureAwait(false);
 
             return new FindReferencesScopedResult(
@@ -430,14 +411,14 @@ public sealed class RoslynNavigationService : INavigationService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "FindReferencesScoped failed for {SymbolId}", request.SymbolId);
+            _logger.LogError(ex, "FindReferencesScoped failed for {SymbolId}", symbolId);
             return new FindReferencesScopedResult(null,
                 Array.Empty<SourceLocation>(),
                 0,
                 NavigationErrorFactory.CreateError(ErrorCodes.InternalError,
-                    $"Failed to find scoped references '{request.SymbolId}': {ex.Message}",
-                    ("symbolId", request.SymbolId),
-                    ("operation", "find-references-scoped")));
+                    $"Failed to find references '{symbolId}': {ex.Message}",
+                    ("symbolId", symbolId),
+                    ("operation", operation)));
         }
     }
 

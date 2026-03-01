@@ -31,6 +31,8 @@ public sealed record ModuleSummary(string Name, string? Path, int OutgoingDepend
 
 public sealed record ProjectDependency(string ProjectName, string ProjectId);
 
+public sealed record ProjectDependencyEdge(ProjectDependency Source, ProjectDependency Target);
+
 public sealed record ListDependenciesRequest(
     string? ProjectPath = null,
     string? ProjectName = null,
@@ -40,7 +42,8 @@ public sealed record ListDependenciesRequest(
 public sealed record ListDependenciesResult(
     IReadOnlyList<ProjectDependency> Dependencies,
     int TotalCount,
-    ErrorInfo? Error = null);
+    ErrorInfo? Error = null,
+    IReadOnlyList<ProjectDependencyEdge>? Edges = null);
 
 public sealed record HotspotSummary(
     string Label,
