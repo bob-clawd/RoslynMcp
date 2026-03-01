@@ -14,7 +14,7 @@ public sealed class ToolMetadataAttributeTests
     [InlineData(typeof(ListMembersTools), nameof(ListMembersTools.ListMembersAsync), "list_members")]
     [InlineData(typeof(ResolveSymbolTools), nameof(ResolveSymbolTools.ResolveSymbolAsync), "resolve_symbol")]
     [InlineData(typeof(ExplainSymbolTools), nameof(ExplainSymbolTools.ExplainSymbolAsync), "explain_symbol")]
-    [InlineData(typeof(TraceCallFlowTools), nameof(TraceCallFlowTools.TraceFlowAsync), "trace_flow")]
+    [InlineData(typeof(TraceCallFlowTools), nameof(TraceCallFlowTools.TraceFlowAsync), "trace_call_flow")]
     [InlineData(typeof(CodeSmellTools), nameof(CodeSmellTools.FindCodeSmellsAsync), "find_codesmells")]
     public void IntentEndpoints_ArePublishedWithExpectedNames(Type toolType, string methodName, string expectedName)
     {
