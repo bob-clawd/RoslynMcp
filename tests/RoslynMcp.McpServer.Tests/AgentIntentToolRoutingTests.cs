@@ -38,7 +38,7 @@ public sealed class AgentIntentToolRoutingTests
         await modification.FindCodeSmellsAsync("  app.cs  ", CancellationToken.None);
         await listDependencies.ListDependenciesAsync(CancellationToken.None, "  /repo/app.csproj  ", "  App  ", "  id-1  ", "  BOTH  ");
         await findUsages.FindUsagesAsync(CancellationToken.None, "  sym  ");
-        await findUsages.FindUsagesScopedAsync(CancellationToken.None, "  sym  ", "  SOLUTION  ", "  a.cs  ");
+        await findUsages.FindUsagesAsync(CancellationToken.None, "  sym  ", "  SOLUTION  ", "  a.cs  ");
 
         bootstrap.LastRequest?.SolutionHintPath.Is("./sample.sln");
         understanding.LastUnderstandRequest?.Profile.Is("deep");

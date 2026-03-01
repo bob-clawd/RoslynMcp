@@ -2,7 +2,6 @@ using RoslynMcp.Core;
 using RoslynMcp.Core.Contracts;
 using RoslynMcp.Core.Models.Agent;
 using RoslynMcp.Core.Models.Common;
-using RoslynMcp.Infrastructure;
 using RoslynMcp.Infrastructure.Workspace;
 using Is.Assertions;
 using Microsoft.CodeAnalysis;
