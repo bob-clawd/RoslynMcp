@@ -1,3 +1,10 @@
+![plot](assets/icon.png)
+
+# Get It on NuGet
+
+[![NuGet](https://img.shields.io/nuget/v/RoslynMcp.svg)](https://www.nuget.org/packages/RoslynMcp/)
+[![.NET](https://img.shields.io/badge/.NET-8.0-blue)](https://www.nuget.org/packages/RoslynMcp/)
+
 # RoslynMcp
 
 A Model Context Protocol (MCP) server that brings Roslyn code intelligence to AI agents.
@@ -28,8 +35,8 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 | **Explain Symbols**     | Understand what a symbol does and where it's used    |
 | **Trace Call Flow**     | See upstream callers or downstream callees           |
 | **Find Usages**         | Locate all references to a type/member               |
-| **Get Type Hierarchy** | Explore type inheritance and derived types          |
-| **Find Code Smells**    | Detect potential issues in a file                     |
+| **Get Type Hierarchy**  | Explore type inheritance and derived types           |
+| **Find Code Smells**    | Detect potential issues in a file                    |
 
 
 
