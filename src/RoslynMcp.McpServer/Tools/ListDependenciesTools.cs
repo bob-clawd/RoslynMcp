@@ -16,16 +16,16 @@ public sealed class ListDependenciesTools
     }
 
     [McpServerTool(Name = "list_dependencies", Title = "List Dependencies", ReadOnly = true, Idempotent = true)]
-    [Description("Lists project dependencies. Returns all projects that a project depends on (outgoing), or projects that depend on it (incoming), or both. Use at session start to understand project relationships. Without a specific project, returns all outgoing dependencies across the solution.")]
+    [Description("Use this tool when you need to understand how projects relate to each other within a solution. It shows the dependency graph between projects, indicating which projects depend on which others.")]
     public Task<ListDependenciesResult> ListDependenciesAsync(
         CancellationToken cancellationToken,
-        [Description("Project selector option 1: exact project path from load_solution output. Provide exactly one selector (path, name, or id).")]
+        [Description("Exact path to a project file (.csproj). Specify only one of projectPath, projectName, or projectId.")]
         string? projectPath = null,
-        [Description("Project selector option 2: project name from load_solution output.")]
+        [Description("Name of a project. Specify only one of projectPath, projectName, or projectId.")]
         string? projectName = null,
-        [Description("Project selector option 3: projectId from load_solution output.")]
+        [Description("Project identifier from load_solution output. Specify only one of projectPath, projectName, or projectId.")]
         string? projectId = null,
-        [Description("Dependency direction: 'outgoing' (projects this project depends on), 'incoming' (projects that depend on this project), or 'both'. Defaults to 'both'.")]
+        [Description("Which direction of dependencies to return. outgoing shows what the selected project depends on. incoming shows what depends on the selected project. both returns both directions. Defaults to both.")]
         string? direction = null)
         => _codeUnderstandingService.ListDependenciesAsync(
             ToolContractMapper.ToListDependenciesRequest(projectPath, projectName, projectId, direction),

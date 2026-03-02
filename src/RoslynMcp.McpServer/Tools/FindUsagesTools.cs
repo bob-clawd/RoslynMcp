@@ -16,14 +16,14 @@ public sealed class FindUsagesTools
     }
 
     [McpServerTool(Name = "find_usages", Title = "Find Usages", ReadOnly = true, Idempotent = true)]
-    [Description("Finds references/usages of a symbol within a specific scope: 'document', 'project', or 'solution'. Use when you want to limit search to a specific file or project. Requires symbolId and scope.")]
+    [Description("Use this tool when you need to find all places where a specific symbol is referenced across a project or the entire solution. This is critical before refactoring or modifying any symbol to understand its impact.")]
     public Task<FindReferencesScopedResult> FindUsagesAsync(
         CancellationToken cancellationToken,
-        [Description("Canonical symbolId from resolve_symbol, list_types, or list_members.")]
+        [Description("The stable symbol ID, obtained from resolve_symbol, list_types, or list_members.")]
         string symbolId,
-        [Description("Search scope: 'document' (current file only), 'project' (containing project), or 'solution' (all projects, default).")]
+        [Description("The search scope. project searches only within the containing project. solution searches the entire solution. Defaults to solution.")]
         string scope = "solution",
-        [Description("Required when scope='document': the file path to search within.")]
+        [Description("Required when scope=document: the file path to search within.")]
         string? path = null)
         => _navigationService.FindReferencesScopedAsync(
             ToolContractMapper.ToFindReferencesScopedRequest(symbolId, scope, path),

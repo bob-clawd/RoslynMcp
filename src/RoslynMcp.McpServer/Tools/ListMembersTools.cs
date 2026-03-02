@@ -16,28 +16,28 @@ public sealed class ListMembersTools
     }
 
     [McpServerTool(Name = "list_members", Title = "List Members", ReadOnly = true, Idempotent = true)]
-    [Description("Lists members (methods, properties, fields, events, constructors) of a resolved type. Requires either typeSymbolId from list_types OR path+line+column pointing to a type. Supports filtering by kind, accessibility, binding (static/instance), and includes inherited members option. Returns stable symbolIds and signatures.")]
+    [Description("Use this tool when you need to see what members (methods, properties, fields, events, constructors) exist inside a specific type. This helps you understand the structure and capabilities of a class or interface.")]
     public Task<ListMembersResult> ListMembersAsync(
         CancellationToken cancellationToken,
-        [Description("Type selector mode A: typeSymbolId from list_types. Use this, or provide path+line+column.")]
+        [Description("The stable symbol ID of a type, obtained from list_types. Provide this OR path+line+column.")]
         string? typeSymbolId = null,
-        [Description("Type selector mode B: source file path used with line+column.")]
+        [Description("Path to a source file. Provide this together with line and column instead of typeSymbolId.")]
         string? path = null,
-        [Description("Type selector mode B: 1-based line number used with path+column.")]
+        [Description("Line number (1-based) pointing to a type in the source file.")]
         int? line = null,
-        [Description("Type selector mode B: 1-based column number used with path+line.")]
+        [Description("Column number (1-based) pointing to a type in the source file.")]
         int? column = null,
-        [Description("Optional kind filter: method, property, field, event, or ctor.")]
+        [Description("Filter by member kind: method, property, field, event, or ctor.")]
         string? kind = null,
-        [Description("Optional accessibility filter: public, internal, protected, private, protected_internal, or private_protected.")]
+        [Description("Filter by accessibility: public, internal, protected, private, protected_internal, or private_protected.")]
         string? accessibility = null,
-        [Description("Optional binding filter: instance or static.")]
+        [Description("Filter by binding type: static or instance.")]
         string? binding = null,
-        [Description("Include inherited members when true. Defaults to false.")]
+        [Description("When true, includes members from base classes. Defaults to false.")]
         bool? includeInherited = null,
-        [Description("Maximum results to return. Defaults to 100; clamped to 0..500.")]
+        [Description("Maximum number of results to return. Defaults to 100, maximum 500.")]
         int? limit = null,
-        [Description("Zero-based pagination offset. Defaults to 0.")]
+        [Description("Number of results to skip for pagination. Defaults to 0.")]
         int? offset = null)
         => _codeUnderstandingService.ListMembersAsync(
             ToolContractMapper.ToListMembersRequest(typeSymbolId, path, line, column, kind, accessibility, binding, includeInherited, limit, offset),

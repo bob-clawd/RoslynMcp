@@ -16,24 +16,24 @@ public sealed class ResolveSymbolTools
     }
 
     [McpServerTool(Name = "resolve_symbol", Title = "Resolve Symbol", ReadOnly = true, Idempotent = true)]
-    [Description("Resolves a symbol into a canonical symbolId. Use this FIRST before explain_symbol, trace_flow, or list_members. Supports three selector modes: (A) symbolId lookup, (B) source position (path+line+column), or (C) qualifiedName (fully qualified or short name). Mode C requires project selector (path/name/id).")]
+    [Description("Use this tool when you have a location in source code (file path + line + column) or a qualified name and you need to obtain a stable symbolId that can be used by other navigation tools. This is often the first step before calling explain_symbol, trace_call_flow, or find_usages.")]
     public Task<ResolveSymbolResult> ResolveSymbolAsync(
         CancellationToken cancellationToken,
-        [Description("Selector mode A: canonical symbolId lookup.")]
+        [Description("An existing symbol ID to look up. Provide this OR path+line+column OR qualifiedName.")]
         string? symbolId = null,
-        [Description("Selector mode B: source file path used with line+column lookup.")]
+        [Description("Path to a source file. Provide this together with line and column instead of symbolId or qualifiedName.")]
         string? path = null,
-        [Description("Selector mode B: 1-based line number used with path+column.")]
+        [Description("Line number (1-based) in the source file.")]
         int? line = null,
-        [Description("Selector mode B: 1-based column number used with path+line.")]
+        [Description("Column number (1-based) in the source file.")]
         int? column = null,
-        [Description("Selector mode C: qualifiedName lookup (fully qualified or short name).")]
+        [Description("A fully qualified or short type/member name (e.g., System.String or MyClass.MyMethod). Provide this instead of symbolId or path+line+column.")]
         string? qualifiedName = null,
-        [Description("Optional project selector for qualifiedName lookup: exact project path from load_solution.")]
+        [Description("Required when using qualifiedName — path to a project that contains the symbol.")]
         string? projectPath = null,
-        [Description("Optional project selector for qualifiedName lookup: project name from load_solution.")]
+        [Description("Required when using qualifiedName — name of a project that contains the symbol.")]
         string? projectName = null,
-        [Description("Optional project selector for qualifiedName lookup: projectId from load_solution.")]
+        [Description("Required when using qualifiedName — project ID from load_solution that contains the symbol.")]
         string? projectId = null)
         => _codeUnderstandingService.ResolveSymbolAsync(
             ToolContractMapper.ToResolveSymbolRequest(symbolId, path, line, column, qualifiedName, projectPath, projectName, projectId),

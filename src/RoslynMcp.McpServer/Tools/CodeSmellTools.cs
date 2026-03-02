@@ -16,9 +16,9 @@ public sealed class CodeSmellTools
     }
 
     [McpServerTool(Name = "find_codesmells", Title = "Find Code Smells", ReadOnly = true, Idempotent = true)]
-    [Description("Finds deterministic code-smell candidates in a document by probing Roslyn diagnostics and refactoring anchors.")]
+    [Description("Use this tool when you need to check a specific file for potential code quality issues. It runs Roslyn-based static analysis to detect common problems such as dead code, performance anti-patterns, naming violations, and other code smells identified by Roslynator analyzers.")]
     public Task<FindCodeSmellsResult> FindCodeSmellsAsync(
-        [Description("Required source document path. The file must exist in the currently loaded solution.")]
+        [Description("Path to the source file to analyze. The file must exist in the currently loaded solution.")]
         string path,
         CancellationToken cancellationToken)
         => _codeSmellFindingService.FindCodeSmellsAsync(

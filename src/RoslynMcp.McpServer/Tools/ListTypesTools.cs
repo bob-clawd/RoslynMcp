@@ -16,24 +16,24 @@ public sealed class ListTypesTools
     }
 
     [McpServerTool(Name = "list_types", Title = "List Types", ReadOnly = true, Idempotent = true)]
-    [Description("Lists all source-declared types (classes, interfaces, enums, structs, records) in a project. Returns stable symbolIds and declaration locations for drill-down. Requires projectPath, projectName, or projectId from load_solution output. Supports filtering by namespace, kind (class/interface/enum/struct/record), and accessibility.")]
+    [Description("Use this tool when you need to discover all types (classes, interfaces, enums, structs, records) defined in a specific project. This is useful when you want to explore what's available in a project or find a specific type by name.")]
     public Task<ListTypesResult> ListTypesAsync(
         CancellationToken cancellationToken,
-        [Description("Project selector option 1: exact project path from load_solution output. Provide exactly one selector (path, name, or id).")]
+        [Description("Exact path to a project file (.csproj). Specify only one of projectPath, projectName, or projectId.")]
         string? projectPath = null,
-        [Description("Project selector option 2: project name from load_solution output.")]
+        [Description("Name of a project. Specify only one of projectPath, projectName, or projectId.")]
         string? projectName = null,
-        [Description("Project selector option 3: projectId from load_solution output.")]
+        [Description("Project identifier from load_solution output. Specify only one of projectPath, projectName, or projectId.")]
         string? projectId = null,
-        [Description("Optional namespace prefix filter.")]
+        [Description("Filter to only types in namespaces starting with this prefix.")]
         string? namespacePrefix = null,
-        [Description("Optional kind filter: class, record, interface, enum, or struct.")]
+        [Description("Filter by type kind: class, record, interface, enum, or struct.")]
         string? kind = null,
-        [Description("Optional accessibility filter: public, internal, protected, private, protected_internal, or private_protected.")]
+        [Description("Filter by accessibility: public, internal, protected, private, protected_internal, or private_protected.")]
         string? accessibility = null,
-        [Description("Maximum results to return. Defaults to 100; clamped to 0..500.")]
+        [Description("Maximum number of results to return. Defaults to 100, maximum 500.")]
         int? limit = null,
-        [Description("Zero-based pagination offset. Defaults to 0.")]
+        [Description("Number of results to skip for pagination. Defaults to 0.")]
         int? offset = null)
         => _codeUnderstandingService.ListTypesAsync(
             ToolContractMapper.ToListTypesRequest(projectPath, projectName, projectId, namespacePrefix, kind, accessibility, limit, offset),

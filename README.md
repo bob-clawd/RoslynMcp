@@ -75,140 +75,130 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 
 ## Public MCP API
 
-These are the public agent-facing tools. Descriptions are intentionally written as routing triggers so an agent prefers semantic code intelligence over generic `grep`/`glob` fallback.
+These tool descriptions are written as routing triggers. Use them to help an agent decide which tool to call based on the user's intent.
 
 
 ### `load_solution`
 
-MUST be called first: loads a `.sln` file and initializes the Roslyn workspace. All other tools require a loaded solution to work. Optionally accepts a solution path (absolute or workspace-relative). Returns project list and baseline diagnostics.
+Use this tool when you need to start working with a .NET solution and no solution has been loaded yet. This must be the first tool called in a session before any code analysis or navigation tools can be used.
 
 Parameters:
-- `solutionHintPath` (optional): Optional solution hint path (absolute or workspace-relative).
-
+- `solutionHintPath` (optional): Absolute path to the `.sln` file. If not provided, the tool will attempt to auto-detect a solution file.
 
 
 ### `understand_codebase`
 
-Quick codebase orientation: returns project structure with dependencies and hotspots (most complex/commented methods). Use at session start to identify high-impact areas. Profiles: `quick` (fast), `standard` (balanced), `deep` (thorough).
+Use this tool when you need a quick overview of the codebase structure at the start of a session. It returns the project structure with dependency relationships and identifies "hotspots" — the most complex and heavily-commented methods that are likely worth attention.
 
 Parameters:
-- `profile` (optional): Hotspot profile: `quick`, `standard`, or `deep`. Defaults to `standard`; unsupported values are treated as `standard`.
-
+- `profile` (optional): Analysis depth. `quick` for fast results, `standard` for balanced output, `deep` for thorough analysis. Defaults to `standard`.
 
 
 ### `list_dependencies`
 
-Lists project dependencies. Returns all projects that a project depends on (`outgoing`), projects that depend on it (`incoming`), or both. Use at session start to understand project relationships. Without a specific project selector, returns dependencies across the solution.
+Use this tool when you need to understand how projects relate to each other within a solution. It shows the dependency graph between projects, indicating which projects depend on which others.
 
 Parameters:
-- `projectPath` (optional): Project selector option 1: exact project path from `load_solution` output. Provide exactly one selector (`path`, `name`, or `id`).
-- `projectName` (optional): Project selector option 2: project name from `load_solution` output.
-- `projectId` (optional): Project selector option 3: projectId from `load_solution` output.
-- `direction` (optional): Dependency direction: `outgoing`, `incoming`, or `both`. Defaults to `both`.
-
+- `projectPath` (optional): Exact path to a project file (`.csproj`). Specify only one of `projectPath`, `projectName`, or `projectId`.
+- `projectName` (optional): Name of a project. Specify only one of `projectPath`, `projectName`, or `projectId`.
+- `projectId` (optional): Project identifier from `load_solution` output. Specify only one of `projectPath`, `projectName`, or `projectId`.
+- `direction` (optional): Which direction of dependencies to return. `outgoing` shows what the selected project depends on. `incoming` shows what depends on the selected project. `both` returns both directions. Defaults to `both`.
 
 
 ### `list_types`
 
-Lists all source-declared types (classes, interfaces, enums, structs, records) in a project. Returns stable `symbolId`s and declaration locations for drill-down. Requires `projectPath`, `projectName`, or `projectId` from `load_solution` output. Supports filtering by namespace, kind (`class`/`interface`/`enum`/`struct`/`record`), and accessibility.
+Use this tool when you need to discover all types (classes, interfaces, enums, structs, records) defined in a specific project. This is useful when you want to explore what's available in a project or find a specific type by name.
 
 Parameters:
-- `projectPath` (optional): Project selector option 1: exact project path from `load_solution` output. Provide exactly one selector (`path`, `name`, or `id`).
-- `projectName` (optional): Project selector option 2: project name from `load_solution` output.
-- `projectId` (optional): Project selector option 3: projectId from `load_solution` output.
-- `namespacePrefix` (optional): Namespace prefix filter.
-- `kind` (optional): Kind filter: `class`, `record`, `interface`, `enum`, or `struct`.
-- `accessibility` (optional): Accessibility filter: `public`, `internal`, `protected`, `private`, `protected_internal`, or `private_protected`.
-- `limit` (optional): Maximum results to return. Defaults to `100`; clamped to `0..500`.
-- `offset` (optional): Zero-based pagination offset. Defaults to `0`.
-
+- `projectPath` (optional): Exact path to a project file (`.csproj`). Specify only one of `projectPath`, `projectName`, or `projectId`.
+- `projectName` (optional): Name of a project. Specify only one of `projectPath`, `projectName`, or `projectId`.
+- `projectId` (optional): Project identifier from `load_solution` output. Specify only one of `projectPath`, `projectName`, or `projectId`.
+- `namespacePrefix` (optional): Filter to only types in namespaces starting with this prefix.
+- `kind` (optional): Filter by type kind: `class`, `record`, `interface`, `enum`, or `struct`.
+- `accessibility` (optional): Filter by accessibility: `public`, `internal`, `protected`, `private`, `protected_internal`, or `private_protected`.
+- `limit` (optional): Maximum number of results to return. Defaults to `100`, maximum `500`.
+- `offset` (optional): Number of results to skip for pagination. Defaults to `0`.
 
 
 ### `list_members`
 
-Lists members (methods, properties, fields, events, constructors) of a resolved type. Requires either `typeSymbolId` from `list_types` OR `path+line+column` pointing to a type. Supports filtering by kind, accessibility, binding (`static`/`instance`), and includes inherited members option. Returns stable `symbolId`s and signatures.
+Use this tool when you need to see what members (methods, properties, fields, events, constructors) exist inside a specific type. This helps you understand the structure and capabilities of a class or interface.
 
 Parameters:
-- `typeSymbolId` (optional): Type selector mode A: typeSymbolId from `list_types`. Use this, or provide `path+line+column`.
-- `path` (optional): Type selector mode B: source file path used with `line+column`.
-- `line` (optional): Type selector mode B: 1-based line number used with `path+column`.
-- `column` (optional): Type selector mode B: 1-based column number used with `path+line`.
-- `kind` (optional): Kind filter: `method`, `property`, `field`, `event`, or `ctor`.
-- `accessibility` (optional): Accessibility filter: `public`, `internal`, `protected`, `private`, `protected_internal`, or `private_protected`.
-- `binding` (optional): Binding filter: `instance` or `static`.
-- `includeInherited` (optional): Include inherited members when `true`. Defaults to `false`.
-- `limit` (optional): Maximum results to return. Defaults to `100`; clamped to `0..500`.
-- `offset` (optional): Zero-based pagination offset. Defaults to `0`.
-
+- `typeSymbolId` (optional): The stable symbol ID of a type, obtained from `list_types`. Provide this OR `path`+`line`+`column`.
+- `path` (optional): Path to a source file. Provide this together with `line` and `column` instead of `typeSymbolId`.
+- `line` (optional): Line number (1-based) pointing to a type in the source file.
+- `column` (optional): Column number (1-based) pointing to a type in the source file.
+- `kind` (optional): Filter by member kind: `method`, `property`, `field`, `event`, or `ctor`.
+- `accessibility` (optional): Filter by accessibility: `public`, `internal`, `protected`, `private`, `protected_internal`, or `private_protected`.
+- `binding` (optional): Filter by binding type: `static` or `instance`.
+- `includeInherited` (optional): When `true`, includes members from base classes. Defaults to `false`.
+- `limit` (optional): Maximum number of results to return. Defaults to `100`, maximum `500`.
+- `offset` (optional): Number of results to skip for pagination. Defaults to `0`.
 
 
 ### `resolve_symbol`
 
-Resolves a symbol into a canonical `symbolId`. Use this FIRST before `explain_symbol`, `trace_flow`, or `list_members`. Supports three selector modes: (A) `symbolId` lookup, (B) source position (`path+line+column`), or (C) `qualifiedName` (fully qualified or short name). Mode C requires project selector (`path`/`name`/`id`).
+Use this tool when you have a location in source code (file path + line + column) or a qualified name and you need to obtain a stable `symbolId` that can be used by other navigation tools. This is often the first step before calling `explain_symbol`, `trace_call_flow`, or `find_usages`.
 
 Parameters:
-- `symbolId` (optional): Selector mode A: canonical symbolId lookup.
-- `path` (optional): Selector mode B: source file path used with `line+column` lookup.
-- `line` (optional): Selector mode B: 1-based line number used with `path+column`.
-- `column` (optional): Selector mode B: 1-based column number used with `path+line`.
-- `qualifiedName` (optional): Selector mode C: qualifiedName lookup (fully qualified or short name).
-- `projectPath` (optional): Optional project selector for qualifiedName lookup: exact project path from `load_solution`.
-- `projectName` (optional): Optional project selector for qualifiedName lookup: project name from `load_solution`.
-- `projectId` (optional): Optional project selector for qualifiedName lookup: projectId from `load_solution`.
-
+- `symbolId` (optional): An existing symbol ID to look up. Provide this OR `path`+`line`+`column` OR `qualifiedName`.
+- `path` (optional): Path to a source file. Provide this together with `line` and `column` instead of `symbolId` or `qualifiedName`.
+- `line` (optional): Line number (1-based) in the source file.
+- `column` (optional): Column number (1-based) in the source file.
+- `qualifiedName` (optional): A fully qualified or short type/member name (e.g., `System.String` or `MyClass.MyMethod`). Provide this instead of `symbolId` or `path`+`line`+`column`.
+- `projectPath` (optional): Required when using `qualifiedName` — path to a project that contains the symbol.
+- `projectName` (optional): Required when using `qualifiedName` — name of a project that contains the symbol.
+- `projectId` (optional): Required when using `qualifiedName` — project ID from `load_solution` that contains the symbol.
 
 
 ### `explain_symbol`
 
-Explains a resolved symbol: its role, signature, containing namespace/type, key references (where it's used), and impact hints (zones with high reference density). Requires `symbolId` from `resolve_symbol` OR `path+line+column` pointing to the symbol.
+Use this tool when you need to understand what a specific symbol (type, method, property, field, etc.) does, what its signature looks like, and where it is used in the codebase. It provides a human-readable explanation along with impact hints showing areas with high reference density.
 
 Parameters:
-- `symbolId` (optional): Symbol selector mode A: canonical symbolId. Use this, or provide `path+line+column`.
-- `path` (optional): Symbol selector mode B: source file path used with `line+column`.
-- `line` (optional): Symbol selector mode B: 1-based line number used with `path+column`.
-- `column` (optional): Symbol selector mode B: 1-based column number used with `path+line`.
-
+- `symbolId` (optional): The stable symbol ID, obtained from `resolve_symbol`, `list_types`, or `list_members`. Provide this OR `path`+`line`+`column`.
+- `path` (optional): Path to a source file. Provide this together with `line` and `column` instead of `symbolId`.
+- `line` (optional): Line number (1-based) pointing to the symbol in the source file.
+- `column` (optional): Column number (1-based) pointing to the symbol in the source file.
 
 
 ### `trace_call_flow`
 
-Traces call flow from/to a symbol. Use to understand code flow: upstream shows callers (who uses this), downstream shows callees (what this calls). Requires `symbolId` OR `path+line+column`. Direction: `upstream`, `downstream`, or `both` (default). Depth: how many hops to traverse (default `2`, max unbounded). Returns call graph edges with locations.
+Use this tool when you need to understand how code flows through your system — either finding what calls a specific symbol (upstream) or what a symbol calls (downstream). This is essential for debugging, impact analysis, and understanding architectural patterns.
 
 Parameters:
-- `symbolId` (optional): Symbol selector mode A: canonical symbolId. Use this, or provide `path+line+column`.
-- `path` (optional): Symbol selector mode B: source file path used with `line+column`.
-- `line` (optional): Symbol selector mode B: 1-based line number used with `path+column`.
-- `column` (optional): Symbol selector mode B: 1-based column number used with `path+line`.
-- `direction` (optional): Traversal direction: `upstream`, `downstream`, or `both`. Aliases `up`/`down` are accepted. Default is `both`.
-- `depth` (optional): Traversal depth as a non-negative integer. Defaults to `2` when omitted; values below `1` execute as depth `1`.
-
+- `symbolId` (optional): The stable symbol ID, obtained from `resolve_symbol`, `list_types`, or `list_members`. Provide this OR `path`+`line`+`column`.
+- `path` (optional): Path to a source file. Provide this together with `line` and `column` instead of `symbolId`.
+- `line` (optional): Line number (1-based) pointing to the symbol in the source file.
+- `column` (optional): Column number (1-based) pointing to the symbol in the source file.
+- `direction` (optional): Which direction to trace. `upstream` finds callers (who uses this). `downstream` finds callees (what this calls). `both` returns both directions. Defaults to `both`.
+- `depth` (optional): How many levels of the call chain to traverse. Defaults to `2`. Use larger values for deeper analysis, or `null` for unlimited depth.
 
 
 ### `find_usages`
 
-Finds references/usages of a symbol within a project or the entire solution. Use to locate where a type, method, property, or field is being used. Returns reference locations with file paths and line numbers. Requires `symbolId` from `resolve_symbol`, `list_types`, or `list_members`.
+Use this tool when you need to find all places where a specific symbol is referenced across a project or the entire solution. This is critical before refactoring or modifying any symbol to understand its impact.
 
 Parameters:
-- `symbolId` (required): Canonical symbolId from `resolve_symbol`, `list_types`, or `list_members`.
-- `scope` (optional): Search scope: `project` (containing project) or `solution` (all projects, default).
-
+- `symbolId` (required): The stable symbol ID, obtained from `resolve_symbol`, `list_types`, or `list_members`.
+- `scope` (optional): The search scope. `project` searches only within the containing project. `solution` searches the entire solution. Defaults to `solution`.
 
 
 ### `get_type_hierarchy`
 
-Gets the complete type hierarchy for a type: base classes, implemented interfaces, and derived types. Use to understand inheritance relationships and type evolution. Requires `symbolId` from `resolve_symbol`, `list_types`, or `list_members`.
+Use this tool when you need to understand the inheritance relationships of a type — its base classes, implemented interfaces, and any derived types. This helps you understand type evolution and polymorphism in your codebase.
 
 Parameters:
-- `symbolId` (required): Canonical symbolId from `resolve_symbol`, `list_types`, or `list_members`. Must resolve to a type (class, interface, enum, struct, record).
-- `includeTransitive` (optional): When `true` (default), includes all transitive base types and derived types. When `false`, only immediate parents/children.
-- `maxDerived` (optional): Maximum number of derived types to return. Default `200`. Higher values may impact performance.
-
+- `symbolId` (required): The stable symbol ID of a type, obtained from `resolve_symbol`, `list_types`, or `list_members`. Must resolve to a type (class, interface, enum, struct, or record).
+- `includeTransitive` (optional): When `true` (default), includes all transitive base types and all derived types. When `false`, returns only immediate parents and children.
+- `maxDerived` (optional): Maximum number of derived types to return. Defaults to `200`. Higher values may impact performance.
 
 
 ### `find_codesmells`
 
-Finds deterministic code-smell candidates in a document by probing Roslyn diagnostics and refactoring anchors.
+Use this tool when you need to check a specific file for potential code quality issues. It runs Roslyn-based static analysis to detect common problems such as dead code, performance anti-patterns, naming violations, and other code smells identified by Roslynator analyzers.
 
 Parameters:
-- `path` (required): Source document path. The file must exist in the currently loaded solution.
+- `path` (required): Path to the source file to analyze. The file must exist in the currently loaded solution.
 

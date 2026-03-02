@@ -16,16 +16,16 @@ public sealed class ExplainSymbolTools
     }
 
     [McpServerTool(Name = "explain_symbol", Title = "Explain Symbol", ReadOnly = true, Idempotent = true)]
-    [Description("Explains a resolved symbol: its role, signature, containing namespace/type, key references (where it's used), and impact hints (zones with high reference density). Requires symbolId from resolve_symbol OR path+line+column pointing to the symbol.")]
+    [Description("Use this tool when you need to understand what a specific symbol (type, method, property, field, etc.) does, what its signature looks like, and where it is used in the codebase. It provides a human-readable explanation along with impact hints showing areas with high reference density.")]
     public Task<ExplainSymbolResult> ExplainSymbolAsync(
         CancellationToken cancellationToken,
-        [Description("Symbol selector mode A: canonical symbolId. Use this, or provide path+line+column.")]
+        [Description("The stable symbol ID, obtained from resolve_symbol, list_types, or list_members. Provide this OR path+line+column.")]
         string? symbolId = null,
-        [Description("Symbol selector mode B: source file path used with line+column.")]
+        [Description("Path to a source file. Provide this together with line and column instead of symbolId.")]
         string? path = null,
-        [Description("Symbol selector mode B: 1-based line number used with path+column.")]
+        [Description("Line number (1-based) pointing to the symbol in the source file.")]
         int? line = null,
-        [Description("Symbol selector mode B: 1-based column number used with path+line.")]
+        [Description("Column number (1-based) pointing to the symbol in the source file.")]
         int? column = null)
         => _codeUnderstandingService.ExplainSymbolAsync(
             ToolContractMapper.ToExplainSymbolRequest(symbolId, path, line, column),

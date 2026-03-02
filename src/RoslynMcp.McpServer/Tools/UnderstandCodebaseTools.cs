@@ -16,10 +16,10 @@ public sealed class UnderstandCodebaseTools
     }
 
     [McpServerTool(Name = "understand_codebase", Title = "Understand Codebase", ReadOnly = true, Idempotent = true)]
-    [Description("Quick codebase orientation: returns project structure with dependencies and hotspots (most complex/commented methods). Use at session start to identify high-impact areas. Profiles: quick (fast), standard (balanced), deep (thorough).")]
+    [Description("Use this tool when you need a quick overview of the codebase structure at the start of a session. It returns the project structure with dependency relationships and identifies hotspots — the most complex and heavily-commented methods that are likely worth attention.")]
     public Task<UnderstandCodebaseResult> UnderstandCodebaseAsync(
         CancellationToken cancellationToken,
-        [Description("Hotspot profile: quick, standard, or deep. Defaults to standard; unsupported values are treated as standard.")]
+        [Description("Analysis depth. quick for fast results, standard for balanced output, deep for thorough analysis. Defaults to standard.")]
         string? profile = null)
         => _codeUnderstandingService.UnderstandCodebaseAsync(ToolContractMapper.ToUnderstandCodebaseRequest(profile), cancellationToken);
 }
