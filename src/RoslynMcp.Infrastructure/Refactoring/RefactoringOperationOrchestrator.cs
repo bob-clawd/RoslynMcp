@@ -1,4 +1,3 @@
-using RoslynMcp.Core.Contracts;
 using RoslynMcp.Core;
 using RoslynMcp.Core.Models.Common;
 using RoslynMcp.Core.Models.Refactoring;
@@ -12,14 +11,11 @@ using Microsoft.CodeAnalysis.CodeRefactorings;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Formatting;
-using Microsoft.CodeAnalysis.Rename;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Reflection;
-using System.Runtime.Loader;
 using System.Text;
 
 namespace RoslynMcp.Infrastructure.Refactoring;
