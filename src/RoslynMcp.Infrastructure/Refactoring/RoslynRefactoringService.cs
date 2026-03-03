@@ -24,45 +24,45 @@ using System.Text;
 
 namespace RoslynMcp.Infrastructure.Refactoring;
 
-internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOperationOrchestrator
+internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOrchestrator
 {
-    private const string SupportedFixOperation = "remove_unused_local";
-    private const string CleanupRuleRemoveUnusedUsings = "remove_unused_usings";
-    private const string CleanupRuleOrganizeUsings = "organize_usings";
-    private const string CleanupRuleFixModifierOrder = "fix_modifier_order";
-    private const string CleanupRuleAddReadonly = "add_readonly";
-    private const string CleanupRuleFormat = "format";
-    private const string CleanupHealthCheckPerformedDetail = "healthCheckPerformed";
-    private const string CleanupAutoReloadAttemptedDetail = "autoReloadAttempted";
-    private const string CleanupAutoReloadSucceededDetail = "autoReloadSucceeded";
-    private const string CleanupMissingFileCountDetail = "missingFileCount";
-    private const string CleanupReloadErrorCodeDetail = "reloadErrorCode";
-    private const string CleanupStaleWorkspaceMessage = "Workspace snapshot is stale relative to filesystem. Run reload_solution or load_solution, then retry cleanup.";
-    private const string SupportedFixCategory = "compiler";
-    private const string RefactoringOperationUseVar = "use_var_for_local";
-    private const string OriginRoslynatorCodeFix = "roslynator_codefix";
-    private const string OriginRoslynatorRefactoring = "roslynator_refactoring";
-    private const string PolicyProfileDefault = "default";
-    private const string RefactoringCategoryDefault = "refactoring";
-    private const string RefactoringActionPipelineFlowLog = "refactoring_action_pipeline_flow";
+    internal const string SupportedFixOperation = "remove_unused_local";
+    internal const string CleanupRuleRemoveUnusedUsings = "remove_unused_usings";
+    internal const string CleanupRuleOrganizeUsings = "organize_usings";
+    internal const string CleanupRuleFixModifierOrder = "fix_modifier_order";
+    internal const string CleanupRuleAddReadonly = "add_readonly";
+    internal const string CleanupRuleFormat = "format";
+    internal const string CleanupHealthCheckPerformedDetail = "healthCheckPerformed";
+    internal const string CleanupAutoReloadAttemptedDetail = "autoReloadAttempted";
+    internal const string CleanupAutoReloadSucceededDetail = "autoReloadSucceeded";
+    internal const string CleanupMissingFileCountDetail = "missingFileCount";
+    internal const string CleanupReloadErrorCodeDetail = "reloadErrorCode";
+    internal const string CleanupStaleWorkspaceMessage = "Workspace snapshot is stale relative to filesystem. Run reload_solution or load_solution, then retry cleanup.";
+    internal const string SupportedFixCategory = "compiler";
+    internal const string RefactoringOperationUseVar = "use_var_for_local";
+    internal const string OriginRoslynatorCodeFix = "roslynator_codefix";
+    internal const string OriginRoslynatorRefactoring = "roslynator_refactoring";
+    internal const string PolicyProfileDefault = "default";
+    internal const string RefactoringCategoryDefault = "refactoring";
+    internal const string RefactoringActionPipelineFlowLog = "refactoring_action_pipeline_flow";
 
-    private static readonly HashSet<string> SupportedFixDiagnosticIds =
+    internal static readonly HashSet<string> SupportedFixDiagnosticIds =
         new(StringComparer.OrdinalIgnoreCase) { "CS0168", "CS0219", "IDE0059" };
 
-    private static readonly HashSet<string> CleanupRemoveUnusedUsingDiagnostics =
+    internal static readonly HashSet<string> CleanupRemoveUnusedUsingDiagnostics =
         new(StringComparer.OrdinalIgnoreCase) { "IDE0005", "CS8019" };
 
-    private static readonly HashSet<string> CleanupModifierOrderDiagnostics =
+    internal static readonly HashSet<string> CleanupModifierOrderDiagnostics =
         new(StringComparer.OrdinalIgnoreCase) { "IDE0036" };
 
-    private static readonly HashSet<string> CleanupReadonlyDiagnostics =
+    internal static readonly HashSet<string> CleanupReadonlyDiagnostics =
         new(StringComparer.OrdinalIgnoreCase) { "IDE0044" };
 
-    private readonly IRoslynSolutionAccessor _solutionAccessor;
-    private readonly ILogger<RoslynRefactoringService> _logger;
-    private readonly ActionIdentityService _actionIdentityService;
-    private readonly RefactoringPolicyService _refactoringPolicyService;
-    private readonly RoslynatorProviderCatalogService _providerCatalogService;
+    internal readonly IRoslynSolutionAccessor _solutionAccessor;
+    internal readonly ILogger<RoslynRefactoringService> _logger;
+    internal readonly ActionIdentityService _actionIdentityService;
+    internal readonly RefactoringPolicyService _refactoringPolicyService;
+    internal readonly RoslynatorProviderCatalogService _providerCatalogService;
     private readonly RefactoringActionOperations _refactoringActions;
     private readonly CodeFixOperations _codeFixOperations;
     private readonly CleanupOperations _cleanupOperations;
@@ -105,7 +105,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
     public Task<ExecuteCleanupResult> ExecuteCleanupAsync(ExecuteCleanupRequest request, CancellationToken ct)
         => _cleanupOperations.ExecuteCleanupAsync(request, ct);
 
-    private static ExecuteCleanupResult CreateStaleWorkspaceResult(
+    internal static ExecuteCleanupResult CreateStaleWorkspaceResult(
         string scope,
         bool healthCheckPerformed,
         bool autoReloadAttempted,
@@ -129,7 +129,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
                 (CleanupReloadErrorCodeDetail, reloadErrorCode)));
     }
 
-    private static IReadOnlyList<string> BuildCleanupMetadataWarnings(bool healthCheckPerformed, bool autoReloadAttempted, bool autoReloadSucceeded)
+    internal static IReadOnlyList<string> BuildCleanupMetadataWarnings(bool healthCheckPerformed, bool autoReloadAttempted, bool autoReloadSucceeded)
         =>
         [
             $"meta.{CleanupHealthCheckPerformedDetail}={BoolToLowerInvariantString(healthCheckPerformed)}",
@@ -137,7 +137,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
             $"meta.{CleanupAutoReloadSucceededDetail}={BoolToLowerInvariantString(autoReloadSucceeded)}"
         ];
 
-    private static CleanupWorkspaceHealth EvaluateWorkspaceFilesystemHealth(IReadOnlyList<Document> scopedDocuments)
+    internal static CleanupWorkspaceHealth EvaluateWorkspaceFilesystemHealth(IReadOnlyList<Document> scopedDocuments)
     {
         var missingRootedFiles = scopedDocuments
             .Select(static document => document.FilePath)
@@ -152,18 +152,18 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return new CleanupWorkspaceHealth(missingRootedFiles.Length == 0, missingRootedFiles);
     }
 
-    private static string BoolToLowerInvariantString(bool value)
+    internal static string BoolToLowerInvariantString(bool value)
         => value ? "true" : "false";
 
-    private sealed record CleanupWorkspaceHealth(bool IsConsistent, IReadOnlyList<string> MissingRootedFiles);
+    internal sealed record CleanupWorkspaceHealth(bool IsConsistent, IReadOnlyList<string> MissingRootedFiles);
 
     public Task<RenameSymbolResult> RenameSymbolAsync(RenameSymbolRequest request, CancellationToken ct)
         => _renameOperations.RenameSymbolAsync(request, ct);
 
-    private static RenameSymbolResult CreateErrorResult(string code, string message, params (string Key, string? Value)[] details)
+    internal static RenameSymbolResult CreateErrorResult(string code, string message, params (string Key, string? Value)[] details)
         => new(null, 0, Array.Empty<SourceLocation>(), Array.Empty<string>(), CreateError(code, message, details));
 
-    private static IReadOnlyList<string> BuildCleanupRuleIds()
+    internal static IReadOnlyList<string> BuildCleanupRuleIds()
         =>
         [
             CleanupRuleRemoveUnusedUsings,
@@ -173,7 +173,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
             CleanupRuleFormat
         ];
 
-    private async Task<Solution> ApplyDiagnosticCleanupStepAsync(
+    internal async Task<Solution> ApplyDiagnosticCleanupStepAsync(
         Solution solution,
         IReadOnlyList<Document> scopeDocuments,
         ISet<string> allowedDiagnosticIds,
@@ -236,7 +236,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return updated;
     }
 
-    private async Task<Solution> OrganizeUsingsAsync(Solution solution, IReadOnlyList<Document> scopeDocuments, CancellationToken ct)
+    internal async Task<Solution> OrganizeUsingsAsync(Solution solution, IReadOnlyList<Document> scopeDocuments, CancellationToken ct)
     {
         var updated = solution;
         foreach (var baseDocument in scopeDocuments)
@@ -266,7 +266,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return updated;
     }
 
-    private static CompilationUnitSyntax OrganizeUsings(CompilationUnitSyntax root)
+    internal static CompilationUnitSyntax OrganizeUsings(CompilationUnitSyntax root)
     {
         var updated = root.WithUsings(SortUsingDirectives(root.Usings));
         foreach (var namespaceDeclaration in updated.DescendantNodes().OfType<BaseNamespaceDeclarationSyntax>())
@@ -283,7 +283,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return updated;
     }
 
-    private static SyntaxList<UsingDirectiveSyntax> SortUsingDirectives(SyntaxList<UsingDirectiveSyntax> usings)
+    internal static SyntaxList<UsingDirectiveSyntax> SortUsingDirectives(SyntaxList<UsingDirectiveSyntax> usings)
     {
         if (usings.Count <= 1)
         {
@@ -298,7 +298,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
                 .ThenBy(static directive => directive.Alias?.Name.Identifier.ValueText ?? string.Empty, StringComparer.Ordinal));
     }
 
-    private async Task<Solution> FormatScopeAsync(Solution solution, IReadOnlyList<Document> scopeDocuments, CancellationToken ct)
+    internal async Task<Solution> FormatScopeAsync(Solution solution, IReadOnlyList<Document> scopeDocuments, CancellationToken ct)
     {
         var updated = solution;
         foreach (var baseDocument in scopeDocuments)
@@ -317,13 +317,13 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return updated;
     }
 
-    private static RenameSymbolResult CreateErrorResult(ErrorInfo? error)
+    internal static RenameSymbolResult CreateErrorResult(ErrorInfo? error)
     {
         var safeError = error ?? new ErrorInfo(ErrorCodes.InternalError, "An unknown error occurred while renaming a symbol.");
         return new RenameSymbolResult(null, 0, Array.Empty<SourceLocation>(), Array.Empty<string>(), safeError);
     }
 
-    private static ErrorInfo CreateError(string code, string message, params (string Key, string? Value)[] details)
+    internal static ErrorInfo CreateError(string code, string message, params (string Key, string? Value)[] details)
     {
         if (details.Length == 0)
         {
@@ -342,7 +342,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return map.Count == 0 ? new ErrorInfo(code, message) : new ErrorInfo(code, message, map);
     }
 
-    private static ErrorInfo? TryCreateInvalidSymbolIdError(string symbolId, string operation)
+    internal static ErrorInfo? TryCreateInvalidSymbolIdError(string symbolId, string operation)
     {
         if (!string.IsNullOrWhiteSpace(symbolId))
         {
@@ -356,7 +356,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
             ("operation", operation));
     }
 
-    private async Task<(Solution? Solution, ErrorInfo? Error)> TryGetSolutionAsync(CancellationToken ct)
+    internal async Task<(Solution? Solution, ErrorInfo? Error)> TryGetSolutionAsync(CancellationToken ct)
     {
         try
         {
@@ -373,7 +373,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         }
     }
 
-    private static bool IsValidIdentifierForSymbol(ISymbol symbol, string candidate)
+    internal static bool IsValidIdentifierForSymbol(ISymbol symbol, string candidate)
     {
         if (string.IsNullOrWhiteSpace(candidate))
         {
@@ -388,7 +388,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return true;
     }
 
-    private static SourceLocation CreateSourceLocation(Location location)
+    internal static SourceLocation CreateSourceLocation(Location location)
     {
         var span = location.GetLineSpan();
         var filePath = span.Path ?? string.Empty;
@@ -396,10 +396,10 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return new SourceLocation(filePath, start.Line + 1, start.Character + 1);
     }
 
-    private static string GetLocationKey(SourceLocation location)
+    internal static string GetLocationKey(SourceLocation location)
         => string.Join(':', location.FilePath, location.Line, location.Column);
 
-    private static async Task<IReadOnlyList<SourceLocation>> CollectAffectedLocationsAsync(ISymbol symbol, Solution solution, CancellationToken ct)
+    internal static async Task<IReadOnlyList<SourceLocation>> CollectAffectedLocationsAsync(ISymbol symbol, Solution solution, CancellationToken ct)
     {
         var references = await SymbolFinder.FindReferencesAsync(symbol, solution, ct).ConfigureAwait(false);
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -442,7 +442,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
             .ToList();
     }
 
-    private async Task<ISymbol?> ResolveSymbolAsync(string symbolId, Solution solution, CancellationToken ct)
+    internal async Task<ISymbol?> ResolveSymbolAsync(string symbolId, Solution solution, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(symbolId))
         {
@@ -458,7 +458,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
                 continue;
             }
 
-            var resolved = SymbolIdentity.Resolve(symbolId, compilation, ct);
+            var resolved = RefactoringSymbolIdentity.Resolve(symbolId, compilation, ct);
             if (resolved != null)
             {
                 return resolved.OriginalDefinition ?? resolved;
@@ -468,7 +468,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return null;
     }
 
-    private static ISet<string> GetSourceLocationKeys(ISymbol symbol)
+    internal static ISet<string> GetSourceLocationKeys(ISymbol symbol)
     {
         var keys = new HashSet<string>(StringComparer.Ordinal);
         foreach (var location in symbol.Locations.Where(static l => l.IsInSource))
@@ -480,7 +480,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return keys;
     }
 
-    private async Task<ISymbol?> TryResolveRenamedSymbolAsync(Solution solution,
+    internal async Task<ISymbol?> TryResolveRenamedSymbolAsync(Solution solution,
         string newName,
         ISet<string> originalDeclarationKeys,
         CancellationToken ct)
@@ -514,7 +514,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return null;
     }
 
-    private static bool WouldConflict(ISymbol symbol, string newName)
+    internal static bool WouldConflict(ISymbol symbol, string newName)
     {
         if (string.Equals(symbol.Name, newName, StringComparison.Ordinal))
         {
@@ -545,7 +545,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return false;
     }
 
-    private static bool SymbolConflicts(ISymbol original, ISymbol existing)
+    internal static bool SymbolConflicts(ISymbol original, ISymbol existing)
     {
         var normalizedOriginal = original.OriginalDefinition ?? original;
         var normalizedExisting = existing.OriginalDefinition ?? existing;
@@ -601,12 +601,12 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return true;
     }
 
-    private static bool IsValidScope(string scope)
+    internal static bool IsValidScope(string scope)
         => string.Equals(scope, "document", StringComparison.Ordinal)
            || string.Equals(scope, "project", StringComparison.Ordinal)
            || string.Equals(scope, "solution", StringComparison.Ordinal);
 
-    private async Task<(Solution? Solution, int Version, ErrorInfo? Error)> TryGetSolutionWithVersionAsync(CancellationToken ct)
+    internal async Task<(Solution? Solution, int Version, ErrorInfo? Error)> TryGetSolutionWithVersionAsync(CancellationToken ct)
     {
         var (solution, solutionError) = await TryGetSolutionAsync(ct).ConfigureAwait(false);
         if (solution == null)
@@ -635,7 +635,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         }
     }
 
-    private static IEnumerable<Document> ResolveScopeDocuments(Solution solution, string scope, string? path)
+    internal static IEnumerable<Document> ResolveScopeDocuments(Solution solution, string scope, string? path)
     {
         if (string.Equals(scope, "solution", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(path))
         {
@@ -655,7 +655,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
             .Where(document => MatchesByNormalizedPath(document.FilePath, path));
     }
 
-    private static bool MatchesByNormalizedPath(string? candidatePath, string path)
+    internal static bool MatchesByNormalizedPath(string? candidatePath, string path)
     {
         if (string.IsNullOrWhiteSpace(candidatePath) || string.IsNullOrWhiteSpace(path))
         {
@@ -674,7 +674,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         }
     }
 
-    private static HashSet<string>? CreateDiagnosticFilter(IReadOnlyList<string>? diagnosticIds)
+    internal static HashSet<string>? CreateDiagnosticFilter(IReadOnlyList<string>? diagnosticIds)
     {
         if (diagnosticIds == null || diagnosticIds.Count == 0)
         {
@@ -693,10 +693,10 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return filter.Count == 0 ? null : filter;
     }
 
-    private static bool IsSupportedDiagnostic(Diagnostic diagnostic)
+    internal static bool IsSupportedDiagnostic(Diagnostic diagnostic)
         => SupportedFixDiagnosticIds.Contains(diagnostic.Id);
 
-    private static async Task<LocalDeclarationStatementSyntax?> TryGetUnusedLocalDeclarationAsync(
+    internal static async Task<LocalDeclarationStatementSyntax?> TryGetUnusedLocalDeclarationAsync(
         Document document,
         Diagnostic diagnostic,
         CancellationToken ct)
@@ -722,7 +722,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return declaration;
     }
 
-    private static CodeFixDescriptor CreateFixDescriptor(
+    internal static CodeFixDescriptor CreateFixDescriptor(
         Document document,
         Diagnostic diagnostic,
         LocalDeclarationStatementSyntax declaration,
@@ -736,13 +736,13 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return new CodeFixDescriptor(fixId, title, diagnostic.Id, SupportedFixCategory, location, filePath);
     }
 
-    private static string BuildFixId(int workspaceVersion, string diagnosticId, int spanStart, int spanLength, string filePath)
+    internal static string BuildFixId(int workspaceVersion, string diagnosticId, int spanStart, int spanLength, string filePath)
     {
         var encodedPath = Convert.ToBase64String(Encoding.UTF8.GetBytes(filePath));
         return string.Join('|', "v1", workspaceVersion, SupportedFixOperation, diagnosticId, spanStart, spanLength, encodedPath);
     }
 
-    private static ParsedFixId? ParseFixId(string fixId)
+    internal static ParsedFixId? ParseFixId(string fixId)
     {
         if (string.IsNullOrWhiteSpace(fixId))
         {
@@ -777,7 +777,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return new ParsedFixId(version, parts[3], spanStart, spanLength, filePath);
     }
 
-    private async Task<FixOperation?> TryBuildFixOperationAsync(Solution solution, ParsedFixId fix, CancellationToken ct)
+    internal async Task<FixOperation?> TryBuildFixOperationAsync(Solution solution, ParsedFixId fix, CancellationToken ct)
     {
         if (!SupportedFixDiagnosticIds.Contains(fix.DiagnosticId))
         {
@@ -838,7 +838,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
             });
     }
 
-    private static async Task<IReadOnlyList<ChangedFilePreview>> CollectChangedFilesAsync(Solution original, Solution updated, CancellationToken ct)
+    internal static async Task<IReadOnlyList<ChangedFilePreview>> CollectChangedFilesAsync(Solution original, Solution updated, CancellationToken ct)
     {
         var changedDocumentIds = updated.GetChanges(original)
             .GetProjectChanges()
@@ -870,7 +870,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
             .ToList();
     }
 
-    private async Task<IReadOnlyList<DiscoveredAction>> DiscoverActionsAtPositionAsync(
+    internal async Task<IReadOnlyList<DiscoveredAction>> DiscoverActionsAtPositionAsync(
         Document document,
         int position,
         int? selectionStart,
@@ -1028,7 +1028,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return discovered;
     }
 
-    private async Task<FixOperation?> TryBuildActionOperationAsync(Solution solution, ActionExecutionIdentity identity, CancellationToken ct)
+    internal async Task<FixOperation?> TryBuildActionOperationAsync(Solution solution, ActionExecutionIdentity identity, CancellationToken ct)
     {
         if (TryParseProviderCodeFixKey(identity.ProviderActionKey, out var codeFixKey))
         {
@@ -1058,7 +1058,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return null;
     }
 
-    private async Task<FixOperation?> TryBuildUseVarOperationAsync(Solution solution, ActionExecutionIdentity identity, CancellationToken ct)
+    internal async Task<FixOperation?> TryBuildUseVarOperationAsync(Solution solution, ActionExecutionIdentity identity, CancellationToken ct)
     {
         var document = solution.Projects
             .SelectMany(static project => project.Documents)
@@ -1108,7 +1108,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
             });
     }
 
-    private async Task<FixOperation?> TryBuildProviderCodeFixOperationAsync(Solution solution,
+    internal async Task<FixOperation?> TryBuildProviderCodeFixOperationAsync(Solution solution,
         ActionExecutionIdentity identity,
         ProviderCodeFixKey key,
         CancellationToken ct)
@@ -1184,7 +1184,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return null;
     }
 
-    private async Task<FixOperation?> TryBuildProviderRefactoringOperationAsync(Solution solution,
+    internal async Task<FixOperation?> TryBuildProviderRefactoringOperationAsync(Solution solution,
         ActionExecutionIdentity identity,
         ProviderRefactoringKey key,
         CancellationToken ct)
@@ -1231,11 +1231,11 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
             });
     }
 
-    private static Document? FindDocument(Solution solution, string filePath)
+    internal static Document? FindDocument(Solution solution, string filePath)
         => solution.Projects.SelectMany(static project => project.Documents)
             .FirstOrDefault(d => MatchesByNormalizedPath(d.FilePath, filePath));
 
-    private static bool MatchesProviderAction(ActionExecutionIdentity identity, CodeAction action, string actionTitle)
+    internal static bool MatchesProviderAction(ActionExecutionIdentity identity, CodeAction action, string actionTitle)
     {
         if (!string.IsNullOrWhiteSpace(identity.RefactoringId)
             && string.Equals(identity.RefactoringId, action.EquivalenceKey, StringComparison.Ordinal))
@@ -1246,7 +1246,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return string.Equals(action.Title, actionTitle, StringComparison.Ordinal);
     }
 
-    private async Task<IReadOnlyList<Diagnostic>> GetProviderDiagnosticsForDocumentAsync(Document document, CancellationToken ct)
+    internal async Task<IReadOnlyList<Diagnostic>> GetProviderDiagnosticsForDocumentAsync(Document document, CancellationToken ct)
     {
         var diagnostics = new List<Diagnostic>();
         var semanticModel = await document.GetSemanticModelAsync(ct).ConfigureAwait(false);
@@ -1283,7 +1283,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
             .ToArray();
     }
 
-    private async Task<IReadOnlyList<ProviderCodeActionCandidate>> CollectCodeFixActionsAsync(Document document, Diagnostic diagnostic, CancellationToken ct)
+    internal async Task<IReadOnlyList<ProviderCodeActionCandidate>> CollectCodeFixActionsAsync(Document document, Diagnostic diagnostic, CancellationToken ct)
     {
         var catalog = _providerCatalogService.Catalog;
         if (catalog.Error != null || catalog.CodeFixProviders.IsDefaultOrEmpty)
@@ -1333,7 +1333,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return candidates;
     }
 
-    private async Task<IReadOnlyList<ProviderCodeActionCandidate>> CollectCodeRefactoringActionsAsync(Document document, TextSpan selectionSpan, CancellationToken ct)
+    internal async Task<IReadOnlyList<ProviderCodeActionCandidate>> CollectCodeRefactoringActionsAsync(Document document, TextSpan selectionSpan, CancellationToken ct)
     {
         var catalog = _providerCatalogService.Catalog;
         if (catalog.Error != null || catalog.RefactoringProviders.IsDefaultOrEmpty)
@@ -1377,7 +1377,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return candidates;
     }
 
-    private static TextSpan CreateSelectionSpan(int position, int? selectionStart, int? selectionLength)
+    internal static TextSpan CreateSelectionSpan(int position, int? selectionStart, int? selectionLength)
     {
         if (selectionStart.HasValue && selectionLength.HasValue)
         {
@@ -1387,18 +1387,18 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return new TextSpan(position, 0);
     }
 
-    private static string GetCodeFixCategory(Diagnostic diagnostic)
+    internal static string GetCodeFixCategory(Diagnostic diagnostic)
         => string.IsNullOrWhiteSpace(diagnostic.Descriptor.Category)
             ? SupportedFixCategory
             : diagnostic.Descriptor.Category.Trim().ToLowerInvariant();
 
-    private static string BuildProviderCodeFixKey(string providerType, string diagnosticId, string? equivalenceKey, string title)
+    internal static string BuildProviderCodeFixKey(string providerType, string diagnosticId, string? equivalenceKey, string title)
         => string.Join('|', "cf", EncodeKey(providerType), EncodeKey(diagnosticId), EncodeKey(equivalenceKey), EncodeKey(title));
 
-    private static string BuildProviderRefactoringKey(string providerType, string? equivalenceKey, string title)
+    internal static string BuildProviderRefactoringKey(string providerType, string? equivalenceKey, string title)
         => string.Join('|', "rf", EncodeKey(providerType), EncodeKey(equivalenceKey), EncodeKey(title));
 
-    private static bool TryParseProviderCodeFixKey(string key, out ProviderCodeFixKey parsed)
+    internal static bool TryParseProviderCodeFixKey(string key, out ProviderCodeFixKey parsed)
     {
         parsed = default;
         if (string.IsNullOrWhiteSpace(key))
@@ -1423,7 +1423,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return true;
     }
 
-    private static bool TryParseProviderRefactoringKey(string key, out ProviderRefactoringKey parsed)
+    internal static bool TryParseProviderRefactoringKey(string key, out ProviderRefactoringKey parsed)
     {
         parsed = default;
         if (string.IsNullOrWhiteSpace(key))
@@ -1447,10 +1447,10 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return true;
     }
 
-    private static string EncodeKey(string? value)
+    internal static string EncodeKey(string? value)
         => Convert.ToBase64String(Encoding.UTF8.GetBytes(value ?? string.Empty));
 
-    private static string DecodeKey(string encoded)
+    internal static string DecodeKey(string encoded)
     {
         try
         {
@@ -1462,14 +1462,14 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         }
     }
 
-    private static async Task<SourceLocation> CreateSourceLocationFromSpanAsync(Document document, TextSpan span, CancellationToken ct)
+    internal static async Task<SourceLocation> CreateSourceLocationFromSpanAsync(Document document, TextSpan span, CancellationToken ct)
     {
         var text = await document.GetTextAsync(ct).ConfigureAwait(false);
         var line = text.Lines.GetLineFromPosition(span.Start);
         return new SourceLocation(document.FilePath ?? document.Name, line.LineNumber + 1, span.Start - line.Start + 1);
     }
 
-    private async Task<Solution?> TryApplyCodeActionToSolutionAsync(Solution currentSolution, CodeAction action, CancellationToken ct)
+    internal async Task<Solution?> TryApplyCodeActionToSolutionAsync(Solution currentSolution, CodeAction action, CancellationToken ct)
     {
         try
         {
@@ -1484,7 +1484,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         }
     }
 
-    private void LogActionPipelineFlow(
+    internal void LogActionPipelineFlow(
         string operation,
         string actionOrigin,
         string actionType,
@@ -1506,7 +1506,7 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
             affectedDocumentCount);
     }
 
-    private static bool IntersectsSelection(TextSpan span, int? selectionStart, int? selectionLength)
+    internal static bool IntersectsSelection(TextSpan span, int? selectionStart, int? selectionLength)
     {
         if (!selectionStart.HasValue || !selectionLength.HasValue)
         {
@@ -1517,258 +1517,19 @@ internal sealed partial class RefactoringOperationOrchestrator : IRefactoringOpe
         return selection.OverlapsWith(span) || selection.Contains(span.Start) || span.Contains(selection.Start);
     }
 
-    private static PreviewCodeFixResult CreatePreviewError(string code, string message)
+    internal static PreviewCodeFixResult CreatePreviewError(string code, string message)
         => CreatePreviewError(CreateError(code, message, ("operation", "preview_code_fix")));
 
-    private static PreviewCodeFixResult CreatePreviewError(ErrorInfo error)
+    internal static PreviewCodeFixResult CreatePreviewError(ErrorInfo error)
         => new(string.Empty, string.Empty, Array.Empty<ChangedFilePreview>(), error);
 
-    private static ApplyCodeFixResult CreateApplyError(string fixId, string code, string message)
+    internal static ApplyCodeFixResult CreateApplyError(string fixId, string code, string message)
         => new(fixId,
             0,
             Array.Empty<string>(),
             CreateError(code, message, ("fixId", fixId), ("operation", "apply_code_fix")));
 
-    private static string? NormalizeNullable(string? value)
+    internal static string? NormalizeNullable(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value;
 
-    private readonly record struct ProviderCodeFixKey(string ProviderTypeName, string DiagnosticId, string? EquivalenceKey, string ActionTitle);
-
-    private readonly record struct ProviderRefactoringKey(string ProviderTypeName, string? EquivalenceKey, string ActionTitle);
-
-    private sealed record ProviderCodeActionCandidate(string ProviderTypeName, CodeAction Action);
-
-    private sealed record DiscoveredAction(
-        string Title,
-        string Category,
-        string Origin,
-        string ProviderActionKey,
-        string FilePath,
-        int SpanStart,
-        int SpanLength,
-        SourceLocation Location,
-        string? DiagnosticId,
-        string? RefactoringId);
-
-    private sealed record ActionExecutionIdentity(
-        int WorkspaceVersion,
-        string PolicyProfile,
-        string Origin,
-        string Category,
-        string ProviderActionKey,
-        string FilePath,
-        int SpanStart,
-        int SpanLength,
-        string? DiagnosticId,
-        string? RefactoringId,
-        SourceLocation Location)
-    {
-        public DiscoveredAction ToDiscoveredAction()
-            => new(
-                string.Empty,
-                Category,
-                Origin,
-                ProviderActionKey,
-                FilePath,
-                SpanStart,
-                SpanLength,
-                Location,
-                DiagnosticId,
-                RefactoringId);
-    }
-
-    private sealed class ActionIdentityService
-    {
-        public string Create(int workspaceVersion, string policyProfile, DiscoveredAction action)
-            => string.Join('|',
-                "v1",
-                workspaceVersion,
-                Encode(policyProfile),
-                Encode(action.Origin),
-                Encode(action.Category),
-                Encode(action.ProviderActionKey),
-                action.SpanStart,
-                action.SpanLength,
-                Encode(action.FilePath),
-                Encode(action.DiagnosticId),
-                Encode(action.RefactoringId),
-                action.Location.Line,
-                action.Location.Column);
-
-        public ActionExecutionIdentity? Parse(string actionId)
-        {
-            if (string.IsNullOrWhiteSpace(actionId))
-            {
-                return null;
-            }
-
-            var parts = actionId.Split('|');
-            if (parts.Length != 13 || !string.Equals(parts[0], "v1", StringComparison.Ordinal))
-            {
-                return null;
-            }
-
-            if (!int.TryParse(parts[1], out var workspaceVersion)
-                || !int.TryParse(parts[6], out var spanStart)
-                || !int.TryParse(parts[7], out var spanLength)
-                || !int.TryParse(parts[11], out var line)
-                || !int.TryParse(parts[12], out var column))
-            {
-                return null;
-            }
-
-            var policyProfile = Decode(parts[2]);
-            var origin = Decode(parts[3]);
-            var category = Decode(parts[4]);
-            var providerKey = Decode(parts[5]);
-            var filePath = Decode(parts[8]);
-            if (string.IsNullOrWhiteSpace(origin)
-                || string.IsNullOrWhiteSpace(category)
-                || string.IsNullOrWhiteSpace(providerKey)
-                || string.IsNullOrWhiteSpace(filePath))
-            {
-                return null;
-            }
-
-            return new ActionExecutionIdentity(
-                workspaceVersion,
-                string.IsNullOrWhiteSpace(policyProfile) ? PolicyProfileDefault : policyProfile,
-                origin,
-                category,
-                providerKey,
-                filePath,
-                spanStart,
-                spanLength,
-                NormalizeNullable(Decode(parts[9])),
-                NormalizeNullable(Decode(parts[10])),
-                new SourceLocation(filePath, line, column));
-        }
-
-        private static string Encode(string? value)
-            => Convert.ToBase64String(Encoding.UTF8.GetBytes(value ?? string.Empty));
-
-        private static string Decode(string encoded)
-        {
-            try
-            {
-                return Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
-            }
-            catch (FormatException)
-            {
-                return string.Empty;
-            }
-        }
-
-        private static string? NormalizeNullable(string value)
-            => string.IsNullOrWhiteSpace(value) ? null : value;
-    }
-
-    private sealed class RefactoringPolicyService
-    {
-        public PolicyAssessment Evaluate(DiscoveredAction action, string policyProfile)
-        {
-            var profile = string.IsNullOrWhiteSpace(policyProfile)
-                ? PolicyProfileDefault
-                : policyProfile.Trim();
-
-            if (!string.Equals(profile, PolicyProfileDefault, StringComparison.OrdinalIgnoreCase))
-            {
-                return new PolicyAssessment(
-                    "block",
-                    "blocked",
-                    "unknown_profile",
-                    $"Policy profile '{profile}' is not supported.");
-            }
-
-            if (string.Equals(action.ProviderActionKey, RefactoringOperationUseVar, StringComparison.Ordinal))
-            {
-                return new PolicyAssessment(
-                    "review_required",
-                    "review_required",
-                    "manual_review_required",
-                    "This refactoring requires manual review before apply.");
-            }
-
-            if (string.Equals(action.Origin, OriginRoslynatorCodeFix, StringComparison.Ordinal)
-                && string.Equals(action.Category, SupportedFixCategory, StringComparison.Ordinal)
-                && action.DiagnosticId != null
-                && SupportedFixDiagnosticIds.Contains(action.DiagnosticId))
-            {
-                return new PolicyAssessment(
-                    "allow",
-                    "safe",
-                    "allowlisted",
-                    "Action is allowlisted in the default policy profile.");
-            }
-
-            return new PolicyAssessment(
-                "block",
-                "blocked",
-                "not_allowlisted",
-                "Action is not allowlisted in the default policy profile.");
-        }
-    }
-
-    private sealed record PolicyAssessment(string Decision, string RiskLevel, string ReasonCode, string ReasonMessage);
-
-    private sealed record ParsedFixId(int WorkspaceVersion, string DiagnosticId, int SpanStart, int SpanLength, string FilePath);
-
-    private sealed record FixOperation(string Title, Func<Solution, CancellationToken, Task<Solution>> ApplyAsync);
-
-    private static class SymbolIdentity
-    {
-        private static readonly MethodInfo s_createString;
-        private static readonly MethodInfo s_resolveString;
-        private static readonly PropertyInfo s_resolutionSymbol;
-
-        static SymbolIdentity()
-        {
-            var assembly = typeof(SymbolFinder).Assembly;
-            var symbolKeyType = assembly.GetType("Microsoft.CodeAnalysis.SymbolKey", throwOnError: true)!;
-            var resolutionType = assembly.GetType("Microsoft.CodeAnalysis.SymbolKeyResolution", throwOnError: true)!;
-
-            s_createString = symbolKeyType.GetMethod("CreateString", BindingFlags.Public | BindingFlags.Static,
-                binder: null,
-                types: new[] { typeof(ISymbol), typeof(CancellationToken) },
-                modifiers: null)
-                ?? throw new InvalidOperationException("Unable to locate SymbolKey.CreateString");
-
-            s_resolveString = symbolKeyType.GetMethod("ResolveString", BindingFlags.Public | BindingFlags.Static,
-                binder: null,
-                types: new[] { typeof(string), typeof(Compilation), typeof(bool), typeof(CancellationToken) },
-                modifiers: null)
-                ?? throw new InvalidOperationException("Unable to locate SymbolKey.ResolveString");
-
-            s_resolutionSymbol = resolutionType.GetProperty("Symbol", BindingFlags.Public | BindingFlags.Instance)
-                ?? throw new InvalidOperationException("Unable to locate SymbolKeyResolution.Symbol");
-        }
-
-        public static string CreateId(ISymbol symbol)
-        {
-            var resolved = symbol.OriginalDefinition ?? symbol;
-            var result = (string?)s_createString.Invoke(null, new object?[] { resolved, CancellationToken.None });
-            if (!string.IsNullOrEmpty(result))
-            {
-                return result;
-            }
-
-            return resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        }
-
-        public static ISymbol? Resolve(string identifier, Compilation compilation, CancellationToken ct)
-        {
-            if (string.IsNullOrWhiteSpace(identifier))
-            {
-                return null;
-            }
-
-            var resolution = s_resolveString.Invoke(null, new object?[] { identifier, compilation, true, ct });
-            if (resolution == null)
-            {
-                return null;
-            }
-
-            return (ISymbol?)s_resolutionSymbol.GetValue(resolution);
-        }
-    }
 }

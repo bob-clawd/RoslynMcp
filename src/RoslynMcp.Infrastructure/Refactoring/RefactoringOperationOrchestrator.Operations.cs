@@ -7,13 +7,12 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Rename;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using static RoslynMcp.Infrastructure.Refactoring.RefactoringOperationOrchestrator;
 
 namespace RoslynMcp.Infrastructure.Refactoring;
 
-internal sealed partial class RefactoringOperationOrchestrator
+internal sealed class RefactoringActionOperations
 {
-    private sealed class RefactoringActionOperations
-    {
         private readonly RefactoringOperationOrchestrator _owner;
 
         public RefactoringActionOperations(RefactoringOperationOrchestrator owner)
@@ -306,10 +305,10 @@ internal sealed partial class RefactoringOperationOrchestrator
             _owner.LogActionPipelineFlow(operationName, identity.Origin, identity.Category, policy.Decision, startedAt, "ok", paths.Length);
             return new ApplyRefactoringResult(request.ActionId, paths.Length, paths);
         }
-    }
+}
 
-    private sealed class CodeFixOperations
-    {
+internal sealed class CodeFixOperations
+{
         private readonly RefactoringOperationOrchestrator _owner;
 
         public CodeFixOperations(RefactoringOperationOrchestrator owner)
@@ -486,10 +485,10 @@ internal sealed partial class RefactoringOperationOrchestrator
             var paths = changedFiles.Select(static file => file.FilePath).ToArray();
             return new ApplyCodeFixResult(request.FixId, paths.Length, paths);
         }
-    }
+}
 
-    private sealed class CleanupOperations
-    {
+internal sealed class CleanupOperations
+{
         private readonly RefactoringOperationOrchestrator _owner;
 
         public CleanupOperations(RefactoringOperationOrchestrator owner)
@@ -665,10 +664,10 @@ internal sealed partial class RefactoringOperationOrchestrator
 
             return new ExecuteCleanupResult(request.Scope, BuildCleanupRuleIds(), changedPaths, cleanupMetadataWarnings);
         }
-    }
+}
 
-    private sealed class RenameOperations
-    {
+internal sealed class RenameOperations
+{
         private readonly RefactoringOperationOrchestrator _owner;
 
         public RenameOperations(RefactoringOperationOrchestrator owner)
@@ -752,7 +751,7 @@ internal sealed partial class RefactoringOperationOrchestrator
                     .ToList();
                 var renamedSymbol = await _owner.TryResolveRenamedSymbolAsync(renamedSolution, request.NewName, declarationKeys, ct)
                     .ConfigureAwait(false);
-                var renamedSymbolId = renamedSymbol != null ? SymbolIdentity.CreateId(renamedSymbol) : SymbolIdentity.CreateId(symbol);
+                var renamedSymbolId = renamedSymbol != null ? RefactoringSymbolIdentity.CreateId(renamedSymbol) : RefactoringSymbolIdentity.CreateId(symbol);
 
                 var (applied, applyError) = await _owner._solutionAccessor.TryApplySolutionAsync(renamedSolution, ct).ConfigureAwait(false);
                 if (!applied)
@@ -800,5 +799,4 @@ internal sealed partial class RefactoringOperationOrchestrator
                     ("operation", "rename-symbol"));
             }
         }
-    }
 }
