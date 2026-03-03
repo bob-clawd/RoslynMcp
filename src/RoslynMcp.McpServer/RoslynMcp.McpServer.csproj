@@ -32,7 +32,7 @@
         <ToolCommandName>roslynmcp</ToolCommandName>
         <!-- Für NuGet -->
         <PackageId>RoslynMcp</PackageId>
-        <Version>0.2.0</Version>
+        <Version>0.2.1</Version>
         <Authors>chrismo80</Authors>
         <Description>Roslyn-based MCP server for semantic C# analysis.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
