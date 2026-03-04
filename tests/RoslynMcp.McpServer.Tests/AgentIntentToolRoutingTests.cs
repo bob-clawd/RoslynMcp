@@ -129,6 +129,45 @@ public sealed class AgentIntentToolRoutingTests
             LastListDependenciesRequest = request;
             return Task.FromResult(new ListDependenciesResult(Array.Empty<ProjectDependency>(), 0));
         }
+
+        public Task<FindUnusedSymbolsResult> FindUnusedSymbolsAsync(FindUnusedSymbolsRequest request, CancellationToken ct)
+        {
+            return Task.FromResult(new FindUnusedSymbolsResult(Array.Empty<UnusedSymbolEntry>(), 0, 0, Array.Empty<string>(), null));
+        }
+
+        // Stub methods for navigation service delegation
+        public Task<SearchSymbolsResult> SearchSymbolsAsync(SearchSymbolsRequest request, CancellationToken ct)
+            => Task.FromResult(new SearchSymbolsResult(Array.Empty<SymbolDescriptor>(), 0));
+
+        public Task<SearchSymbolsScopedResult> SearchSymbolsScopedAsync(SearchSymbolsScopedRequest request, CancellationToken ct)
+            => Task.FromResult(new SearchSymbolsScopedResult(Array.Empty<SymbolDescriptor>(), 0));
+
+        public Task<GetSignatureResult> GetSignatureAsync(GetSignatureRequest request, CancellationToken ct)
+            => Task.FromResult(new GetSignatureResult(null, string.Empty));
+
+        public Task<FindReferencesResult> FindReferencesAsync(FindReferencesRequest request, CancellationToken ct)
+        {
+            LastReferencesRequest = request;
+            return Task.FromResult(new FindReferencesResult(null, Array.Empty<SourceLocation>()));
+        }
+
+        public Task<FindReferencesScopedResult> FindReferencesScopedAsync(FindReferencesScopedRequest request, CancellationToken ct)
+        {
+            LastReferencesScopedRequest = request;
+            return Task.FromResult(new FindReferencesScopedResult(null, Array.Empty<SourceLocation>(), 0));
+        }
+
+        public Task<FindImplementationsResult> FindImplementationsAsync(FindImplementationsRequest request, CancellationToken ct)
+            => Task.FromResult(new FindImplementationsResult(null, Array.Empty<SymbolDescriptor>()));
+
+        public Task<GetTypeHierarchyResult> GetTypeHierarchyAsync(GetTypeHierarchyRequest request, CancellationToken ct)
+            => Task.FromResult(new GetTypeHierarchyResult(null, Array.Empty<SymbolDescriptor>(), Array.Empty<SymbolDescriptor>(), Array.Empty<SymbolDescriptor>()));
+
+        public Task<GetSymbolOutlineResult> GetSymbolOutlineAsync(GetSymbolOutlineRequest request, CancellationToken ct)
+            => Task.FromResult(new GetSymbolOutlineResult(null, Array.Empty<SymbolMemberOutline>(), Array.Empty<string>()));
+
+        private FindReferencesRequest? LastReferencesRequest;
+        private FindReferencesScopedRequest? LastReferencesScopedRequest;
     }
 
     private sealed class RecordingNavigationService : INavigationService

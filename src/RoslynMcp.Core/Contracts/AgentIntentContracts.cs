@@ -15,6 +15,7 @@ public interface ICodeUnderstandingService
     Task<ListMembersResult> ListMembersAsync(ListMembersRequest request, CancellationToken ct);
     Task<ResolveSymbolResult> ResolveSymbolAsync(ResolveSymbolRequest request, CancellationToken ct);
     Task<ListDependenciesResult> ListDependenciesAsync(ListDependenciesRequest request, CancellationToken ct);
+    Task<FindUnusedSymbolsResult> FindUnusedSymbolsAsync(FindUnusedSymbolsRequest request, CancellationToken ct);
 }
 
 public interface IFlowTraceService

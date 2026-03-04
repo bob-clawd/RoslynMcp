@@ -227,4 +227,230 @@ internal sealed class CodeUnderstandingQueryService
 
         return (typeSymbol, null);
     }
+
+    public async Task<FindUnusedSymbolsResult> FindUnusedSymbolsAsync(
+        FindUnusedSymbolsRequest request,
+        Solution solution,
+        CancellationToken ct)
+    {
+        var warnings = new List<string>();
+
+        // Resolve project from request parameters
+        Project? project = null;
+        if (!string.IsNullOrWhiteSpace(request.ProjectPath))
+        {
+            project = solution.Projects.FirstOrDefault(p =>
+                p.FilePath?.Equals(request.ProjectPath, StringComparison.OrdinalIgnoreCase) == true);
+        }
+        else if (!string.IsNullOrWhiteSpace(request.ProjectName))
+        {
+            project = solution.Projects.FirstOrDefault(p =>
+                p.Name.Equals(request.ProjectName, StringComparison.OrdinalIgnoreCase));
+        }
+        else if (!string.IsNullOrWhiteSpace(request.ProjectId))
+        {
+            project = solution.GetProject(ProjectId.CreateFromSerialized(Guid.Parse(request.ProjectId)));
+        }
+        else
+        {
+            // Default to first project with source files
+            project = solution.Projects.FirstOrDefault(p => p.SupportsCompilation);
+        }
+
+        if (project == null)
+        {
+            return new FindUnusedSymbolsResult(
+                Array.Empty<UnusedSymbolEntry>(),
+                0,
+                0,
+                warnings,
+                AgentErrorInfo.Create(
+                    ErrorCodes.InvalidInput,
+                    "Project not found.",
+                    "Specify a valid project using projectPath, projectName, or projectId."));
+        }
+
+        var compilation = await project.GetCompilationAsync(ct).ConfigureAwait(false);
+        if (compilation == null)
+        {
+            return new FindUnusedSymbolsResult(
+                Array.Empty<UnusedSymbolEntry>(),
+                0,
+                0,
+                warnings,
+                AgentErrorInfo.Create(
+                    ErrorCodes.AnalysisFailed,
+                    "Failed to compile project.",
+                    "Check for compilation errors."));
+        }
+
+        var threshold = request.MinReferenceCount ?? 0;
+        var targetAccessibility = request.Accessibility?.ToLowerInvariant() ?? "all";
+        var targetKind = request.Kind?.ToLowerInvariant() ?? "all";
+
+        var symbols = new List<UnusedSymbolEntry>();
+        var publicApiCount = 0;
+
+        // Collect all candidate symbols from the project
+        var candidateSymbols = new List<ISymbol>();
+        foreach (var document in project.Documents.Where(d => d.SupportsSyntaxTree))
+        {
+            var semanticModel = await document.GetSemanticModelAsync(ct).ConfigureAwait(false);
+            if (semanticModel == null) continue;
+
+            var root = await document.GetSyntaxRootAsync(ct).ConfigureAwait(false);
+            if (root == null) continue;
+
+            foreach (var node in root.DescendantNodes())
+            {
+                ISymbol? symbol = null;
+
+                switch (node)
+                {
+                    case Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax method:
+                        if (method.Modifiers.Any(m => m.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.OverrideKeyword) ||
+                                                       m.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.VirtualKeyword) ||
+                                                       m.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.AbstractKeyword)))
+                            continue;
+                        symbol = semanticModel.GetDeclaredSymbol(method, ct);
+                        if (!MatchesKind(symbol, targetKind)) continue;
+                        if (IsEntryPoint(symbol)) continue; // Main method is always "used"
+                        break;
+
+                    case Microsoft.CodeAnalysis.CSharp.Syntax.PropertyDeclarationSyntax prop:
+                        symbol = semanticModel.GetDeclaredSymbol(prop, ct);
+                        if (!MatchesKind(symbol, targetKind)) continue;
+                        break;
+
+                    case Microsoft.CodeAnalysis.CSharp.Syntax.FieldDeclarationSyntax field:
+                        foreach (var variable in field.Declaration.Variables)
+                        {
+                            var fieldSymbol = semanticModel.GetDeclaredSymbol(variable, ct);
+                            if (fieldSymbol != null && MatchesKind(fieldSymbol, targetKind) && MatchesAccessibility(fieldSymbol, targetAccessibility))
+                            {
+                                candidateSymbols.Add(fieldSymbol);
+                            }
+                        }
+                        continue;
+
+                    case Microsoft.CodeAnalysis.CSharp.Syntax.ClassDeclarationSyntax cls:
+                    case Microsoft.CodeAnalysis.CSharp.Syntax.StructDeclarationSyntax str:
+                    case Microsoft.CodeAnalysis.CSharp.Syntax.InterfaceDeclarationSyntax iface:
+                    case Microsoft.CodeAnalysis.CSharp.Syntax.EnumDeclarationSyntax enm:
+                    case Microsoft.CodeAnalysis.CSharp.Syntax.RecordDeclarationSyntax rec:
+                        symbol = semanticModel.GetDeclaredSymbol(node, ct);
+                        if (!MatchesKind(symbol, targetKind)) continue;
+                        // Skip types with public entry points or attributes suggesting serialization/framework usage
+                        if (HasFrameworkAttributes(symbol)) continue;
+                        break;
+                }
+
+                if (symbol != null && MatchesAccessibility(symbol, targetAccessibility))
+                {
+                    candidateSymbols.Add(symbol);
+                }
+            }
+        }
+
+        // Check references for each candidate
+        foreach (var symbol in candidateSymbols.Distinct(SymbolEqualityComparer.Default))
+        {
+            if (symbol == null) continue;
+
+            var references = await Microsoft.CodeAnalysis.FindSymbols.SymbolFinder
+                .FindReferencesAsync(symbol, solution, ct).ConfigureAwait(false);
+
+            var refCount = references.Sum(r => r.Locations.Count());
+
+            // If it's defined in the project but referenced elsewhere, those refs count too
+            // The above only finds refs within the solution
+
+            if (refCount <= threshold)
+            {
+                var isPublicApi = symbol.DeclaredAccessibility == Accessibility.Public ||
+                                  symbol.DeclaredAccessibility == Accessibility.Protected;
+
+                if (isPublicApi)
+                    publicApiCount++;
+
+                var location = symbol.Locations.FirstOrDefault(l => l.IsInSource);
+                var lineSpan = location?.GetLineSpan();
+
+                symbols.Add(new UnusedSymbolEntry(
+                    SymbolIdentity.CreateId(symbol),
+                    symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                    symbol.Kind.ToString(),
+                    symbol.DeclaredAccessibility.ToString(),
+                    location?.SourceTree?.FilePath ?? string.Empty,
+                    lineSpan?.StartLinePosition.Line + 1 ?? 0,
+                    lineSpan?.StartLinePosition.Character + 1 ?? 0,
+                    refCount,
+                    isPublicApi));
+            }
+        }
+
+        // Sort by reference count, then by name
+        var sortedSymbols = symbols
+            .OrderBy(s => s.ReferenceCount)
+            .ThenBy(s => s.DisplayName, StringComparer.Ordinal)
+            .ToArray();
+
+        return new FindUnusedSymbolsResult(
+            sortedSymbols,
+            sortedSymbols.Length,
+            publicApiCount,
+            warnings,
+            null);
+
+        static bool MatchesKind(ISymbol? symbol, string kind)
+        {
+            if (symbol == null) return false;
+            if (kind == "all") return true;
+
+            return kind switch
+            {
+                "method" => symbol.Kind == SymbolKind.Method,
+                "property" => symbol.Kind == SymbolKind.Property,
+                "field" => symbol.Kind == SymbolKind.Field,
+                "event" => symbol.Kind == SymbolKind.Event,
+                "type" => symbol is INamedTypeSymbol,
+                _ => true
+            };
+        }
+
+        static bool MatchesAccessibility(ISymbol? symbol, string accessibility)
+        {
+            if (symbol == null) return false;
+            if (accessibility == "all") return true;
+
+            return accessibility switch
+            {
+                "public" => symbol.DeclaredAccessibility == Accessibility.Public,
+                "internal" => symbol.DeclaredAccessibility == Accessibility.Internal,
+                "protected" => symbol.DeclaredAccessibility == Accessibility.Protected,
+                "private" => symbol.DeclaredAccessibility == Accessibility.Private,
+                "protected_internal" => symbol.DeclaredAccessibility == Accessibility.ProtectedOrInternal,
+                "private_protected" => symbol.DeclaredAccessibility == Accessibility.ProtectedAndInternal,
+                _ => true
+            };
+        }
+
+        static bool IsEntryPoint(ISymbol? symbol)
+        {
+            if (symbol is not IMethodSymbol method) return false;
+            return method.Name == "Main" &&
+                   method.IsStatic &&
+                   (method.DeclaredAccessibility == Accessibility.Public ||
+                    method.DeclaredAccessibility == Accessibility.Internal);
+        }
+
+        static bool HasFrameworkAttributes(ISymbol? symbol)
+        {
+            if (symbol == null) return false;
+            // Types with certain attributes are likely used by frameworks even if no direct refs
+            var attrNames = new[] { "JsonConverter", "TypeConverter", "DataContract", "Serializable", "ApiController" };
+            return symbol.GetAttributes().Any(a =>
+                attrNames.Any(name => a.AttributeClass?.Name.Contains(name) == true));
+        }
+    }
 }

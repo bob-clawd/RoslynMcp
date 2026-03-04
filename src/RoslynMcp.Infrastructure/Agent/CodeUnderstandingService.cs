@@ -14,6 +14,7 @@ public sealed class CodeUnderstandingService : ICodeUnderstandingService
     private readonly ResolveSymbolHandler _resolveSymbolHandler;
     private readonly ExplainSymbolHandler _explainSymbolHandler;
     private readonly ListDependenciesHandler _listDependenciesHandler;
+    private readonly FindUnusedSymbolsHandler _findUnusedSymbolsHandler;
 
     public CodeUnderstandingService(
         IRoslynSolutionAccessor solutionAccessor,
@@ -36,6 +37,7 @@ public sealed class CodeUnderstandingService : ICodeUnderstandingService
         _resolveSymbolHandler = new ResolveSymbolHandler(queries, symbolLookupService);
         _explainSymbolHandler = new ExplainSymbolHandler(queries, navigationService);
         _listDependenciesHandler = new ListDependenciesHandler(queries);
+        _findUnusedSymbolsHandler = new FindUnusedSymbolsHandler(queries);
     }
 
     public Task<UnderstandCodebaseResult> UnderstandCodebaseAsync(UnderstandCodebaseRequest request, CancellationToken ct)
@@ -55,4 +57,7 @@ public sealed class CodeUnderstandingService : ICodeUnderstandingService
 
     public Task<ListDependenciesResult> ListDependenciesAsync(ListDependenciesRequest request, CancellationToken ct)
         => _listDependenciesHandler.HandleAsync(request, ct);
+
+    public Task<FindUnusedSymbolsResult> FindUnusedSymbolsAsync(FindUnusedSymbolsRequest request, CancellationToken ct)
+        => _findUnusedSymbolsHandler.HandleAsync(request, ct);
 }

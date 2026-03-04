@@ -183,6 +183,21 @@ internal static class ToolContractMapperExtensions
             NormalizeOptionalString(projectId),
             NormalizeOptionalString(direction)?.ToLowerInvariant());
 
+    public static FindUnusedSymbolsRequest ToFindUnusedSymbolsRequest(
+        this string? projectPath,
+        string? projectName,
+        string? projectId,
+        string? kind,
+        string? accessibility,
+        int? minReferenceCount)
+        => new(
+            NormalizeOptionalString(projectPath),
+            NormalizeOptionalString(projectName),
+            NormalizeOptionalString(projectId),
+            NormalizeOptionalString(kind)?.ToLowerInvariant(),
+            NormalizeOptionalString(accessibility)?.ToLowerInvariant(),
+            NormalizeNonNegative(minReferenceCount));
+
     private static int NormalizeDepth(int? value)
         => Math.Max(value ?? MinimumDepth, MinimumDepth);
 

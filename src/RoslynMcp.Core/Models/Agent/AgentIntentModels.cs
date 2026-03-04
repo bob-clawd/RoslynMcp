@@ -195,3 +195,29 @@ public sealed record FindCodeSmellsResult(
     IReadOnlyList<CodeSmellMatch> Actions,
     IReadOnlyList<string> Warnings,
     ErrorInfo? Error = null);
+
+public sealed record FindUnusedSymbolsRequest(
+    string? ProjectPath = null,
+    string? ProjectName = null,
+    string? ProjectId = null,
+    string? Kind = null, // "method", "property", "field", "event", "type", "all"
+    string? Accessibility = null, // "public", "internal", "private", "protected", "all"
+    int? MinReferenceCount = null); // default 0 (unused), can be 1, 2, etc.
+
+public sealed record UnusedSymbolEntry(
+    string SymbolId,
+    string DisplayName,
+    string Kind,
+    string Accessibility,
+    string FilePath,
+    int Line,
+    int Column,
+    int ReferenceCount,
+    bool IsPublicApi); // public/protected symbols are likely API surface
+
+public sealed record FindUnusedSymbolsResult(
+    IReadOnlyList<UnusedSymbolEntry> Symbols,
+    int TotalCount,
+    int PublicApiCount,
+    IReadOnlyList<string> Warnings,
+    ErrorInfo? Error = null);
