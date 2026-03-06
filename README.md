@@ -10,7 +10,7 @@ A Model Context Protocol (MCP) server that brings Roslyn code intelligence to AI
 ## Get It on NuGet
 
 [![NuGet](https://img.shields.io/nuget/v/RoslynMcp.svg)](https://www.nuget.org/packages/RoslynMcp/)
-[![.NET](https://img.shields.io/badge/.NET-8.0-blue)](https://www.nuget.org/packages/RoslynMcp/)
+[![.NET](https://img.shields.io/badge/.NET-10.0-blue)](https://www.nuget.org/packages/RoslynMcp/)
 
 _This project uses Roslynator, licensed under Apache 2.0._
 
