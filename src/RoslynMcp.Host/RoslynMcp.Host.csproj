@@ -22,10 +22,10 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <PackageId>RoslynMcp.v3</PackageId>
+    <PackageId>RoslynMcp</PackageId>
     <PackAsTool>true</PackAsTool>
-    <ToolCommandName>roslynmcp-v3</ToolCommandName>
-    <Version>0.3.4</Version>
+    <ToolCommandName>roslynmcp</ToolCommandName>
+    <Version>0.3.0</Version>
     <Authors>chrismo80</Authors>
     <Description>Roslyn-based MCP server for semantic C# analysis.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
