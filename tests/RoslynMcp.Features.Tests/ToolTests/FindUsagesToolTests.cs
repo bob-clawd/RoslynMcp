@@ -1,5 +1,6 @@
 using Is.Assertions;
 using RoslynMcp.Core;
+using RoslynMcp.Core.Models;
 using RoslynMcp.Features.Tools;
 using Xunit;
 using Xunit.Abstractions;
@@ -9,10 +10,6 @@ namespace RoslynMcp.Features.Tests.ToolTests;
 public sealed class FindUsagesToolTests(FeatureTestsFixture fixture, ITestOutputHelper output)
     : ToolTests<FindUsagesTool>(fixture, output)
 {
-    private string ContractsPath => Path.Combine(TestSolutionDirectory, "ProjectCore", "Contracts.cs");
-
-    private string AppOrchestratorPath => Path.Combine(TestSolutionDirectory, "ProjectApp", "AppOrchestrator.cs");
-
     [Fact]
     public async Task FindUsagesAsync_WithSolutionScope_ReturnsOrderedReferences()
     {
@@ -25,7 +22,7 @@ public sealed class FindUsagesToolTests(FeatureTestsFixture fixture, ITestOutput
         result.Symbol!.Name.Is("IWorkItemOperation");
         result.TotalCount.Is(4);
         
-        result.References.ShouldMatchReferences(
+        ShouldMatchReferences(result.References,
             ("ProjectApp\\AppOrchestrator.cs", 6),
             ("ProjectApp\\AppOrchestrator.cs", 10),
             ("ProjectImpl\\WorkItemOperations.cs", 15),
@@ -56,7 +53,7 @@ public sealed class FindUsagesToolTests(FeatureTestsFixture fixture, ITestOutput
         result.Symbol.IsNotNull();
         result.TotalCount.Is(2);
         
-        result.References.ShouldMatchReferences(
+        ShouldMatchReferences(result.References,
             ("ProjectApp\\AppOrchestrator.cs", 6),
             ("ProjectApp\\AppOrchestrator.cs", 10));
     }
@@ -118,5 +115,16 @@ public sealed class FindUsagesToolTests(FeatureTestsFixture fixture, ITestOutput
         resolved.Symbol.IsNotNull();
 
         return resolved.Symbol!.SymbolId;
+    }
+    
+    private static void ShouldMatchReferences(IReadOnlyList<SourceLocation> references, params (string FileName, int Line)[] expected)
+    {
+        references.Count.Is(expected.Length);
+
+        for (var i = 0; i < expected.Length; i++)
+        {
+            references[i].FilePath.EndsWith(expected[i].FileName, StringComparison.OrdinalIgnoreCase).IsTrue();
+            references[i].Line.Is(expected[i].Line);
+        }
     }
 }

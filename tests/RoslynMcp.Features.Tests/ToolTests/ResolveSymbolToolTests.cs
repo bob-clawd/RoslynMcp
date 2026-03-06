@@ -10,8 +10,6 @@ namespace RoslynMcp.Features.Tests.ToolTests;
 public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOutputHelper output)
     : ToolTests<ResolveSymbolTool>(fixture, output)
 {
-    private string AppOrchestratorPath => Path.Combine(Path.GetDirectoryName(Fixture.SolutionPath)!, "ProjectApp", "AppOrchestrator.cs");
-
     private static void ShouldMatchResolvedMember(ResolvedSymbolSummary? symbol, string expectedName, string expectedKind, string expectedFileName, int expectedLine)
     {
         symbol.IsNotNull();
@@ -30,7 +28,7 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         result.Error.ShouldBeNone();
         result.IsAmbiguous.Is(false);
         result.Candidates.IsEmpty();
-        result.Symbol.ShouldMatchResolvedSymbol("AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
+        ShouldMatchResolvedSymbol(result.Symbol, "AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
     }
 
     [Fact]
@@ -41,7 +39,7 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         result.Error.ShouldBeNone();
         result.IsAmbiguous.IsFalse();
         result.Candidates.IsEmpty();
-        result.Symbol.ShouldMatchResolvedSymbol("AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
+        ShouldMatchResolvedSymbol(result.Symbol, "AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
     }
 
     [Fact]
@@ -52,7 +50,7 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         result.Error.ShouldBeNone();
         result.IsAmbiguous.IsFalse();
         result.Candidates.IsEmpty();
-        result.Symbol.ShouldMatchResolvedSymbol("AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
+        ShouldMatchResolvedSymbol(result.Symbol, "AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
     }
 
     [Fact]
@@ -83,14 +81,14 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         var initial = await Sut.ExecuteAsync(CancellationToken.None, qualifiedName: "ProjectApp.AppOrchestrator", projectName: "ProjectApp");
 
         initial.Error.ShouldBeNone();
-        initial.Symbol.ShouldMatchResolvedSymbol("AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
+        ShouldMatchResolvedSymbol(initial.Symbol, "AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
 
         var roundtrip = await Sut.ExecuteAsync(CancellationToken.None, symbolId: initial.Symbol!.SymbolId);
 
         roundtrip.Error.ShouldBeNone();
         roundtrip.IsAmbiguous.IsFalse();
         roundtrip.Candidates.IsEmpty();
-        roundtrip.Symbol.ShouldMatchResolvedSymbol("AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
+        ShouldMatchResolvedSymbol(roundtrip.Symbol, "AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
         roundtrip.Symbol!.SymbolId.Is(initial.Symbol.SymbolId);
         roundtrip.Symbol.FilePath.Is(initial.Symbol.FilePath);
     }
@@ -167,7 +165,7 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         result.Error.ShouldBeNone();
         result.IsAmbiguous.Is(false);
         result.Candidates.IsEmpty();
-        result.Symbol.ShouldMatchResolvedSymbol("FastWorkItemOperation", "NamedType", "ProjectImpl\\WorkItemOperations.cs");
+        ShouldMatchResolvedSymbol(result.Symbol, "FastWorkItemOperation", "NamedType", "ProjectImpl\\WorkItemOperations.cs");
     }
 
     [Fact]
@@ -176,5 +174,14 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         var result = await Sut.ExecuteAsync(CancellationToken.None);
 
         result.Error.ShouldHaveCode(ErrorCodes.InvalidInput);
+    }
+    
+    private static void ShouldMatchResolvedSymbol(ResolvedSymbolSummary? symbol, string expectedDisplayName, string expectedKind, string expectedFileName)
+    {
+        symbol.IsNotNull();
+        symbol!.DisplayName.Is(expectedDisplayName);
+        symbol.Kind.Is(expectedKind);
+        symbol.FilePath.EndsWith(expectedFileName, StringComparison.OrdinalIgnoreCase).IsTrue();
+        symbol.SymbolId.ShouldNotBeEmpty();
     }
 }

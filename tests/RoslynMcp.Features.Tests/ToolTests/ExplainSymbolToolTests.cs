@@ -12,8 +12,7 @@ public sealed class ExplainSymbolToolTests(FeatureTestsFixture fixture, ITestOut
     [Fact]
     public async Task ExplainSymbolAsync_WithSourcePosition_ReturnsExplanation()
     {
-        var filePath = Path.Combine(Path.GetDirectoryName(Fixture.SolutionPath)!, "ProjectApp", "AppOrchestrator.cs");
-        var result = await Sut.ExecuteAsync(CancellationToken.None, path: filePath, line: 6, column: 21);
+        var result = await Sut.ExecuteAsync(CancellationToken.None, path: AppOrchestratorPath, line: 6, column: 21);
 
         result.Error.ShouldBeNone();
         result.Symbol.IsNotNull();

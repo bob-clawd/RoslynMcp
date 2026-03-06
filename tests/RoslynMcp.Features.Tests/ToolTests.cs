@@ -12,5 +12,12 @@ public abstract class ToolTests<TTool>(FeatureTestsFixture fixture, ITestOutputH
     
     protected string TestSolutionDirectory => Path.GetDirectoryName(Fixture.SolutionPath)!;
     
+    protected string CodeSmellsPath => GetFilePath("ProjectImpl", "CodeSmells");
+    protected string AppOrchestratorPath => GetFilePath("ProjectApp", "AppOrchestrator");
+    protected string HierarchyPath => GetFilePath("ProjectCore", "Hierarchy");
+    protected string ContractsPath => GetFilePath("ProjectCore", "Contracts");
+    
     protected void Trace(string message) => output.WriteLine(typeof(TTool) + ": " + message);
+    
+    private string GetFilePath(string project, string file) => Path.Combine(TestSolutionDirectory, project, $"{file}.cs");
 }

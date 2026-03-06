@@ -13,8 +13,8 @@ public sealed class TraceCallFlowToolTests(FeatureTestsFixture fixture, ITestOut
     public async Task TraceFlowAsync_WithResolvedMethodSymbol_ReturnsDownstreamEdges()
     {
         var resolver = Fixture.GetRequiredService<ResolveSymbolTool>();
-        var appOrchestratorPath = Path.Combine(Path.GetDirectoryName(Fixture.SolutionPath)!, "ProjectApp", "AppOrchestrator.cs");
-        var resolved = await resolver.ExecuteAsync(CancellationToken.None, path: appOrchestratorPath, line: 15, column: 44);
+
+        var resolved = await resolver.ExecuteAsync(CancellationToken.None, path: AppOrchestratorPath, line: 15, column: 44);
 
         resolved.Error.ShouldBeNone();
 

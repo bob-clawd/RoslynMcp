@@ -10,9 +10,7 @@ namespace RoslynMcp.Features.Tests.ToolTests;
 public sealed class FindImplementationsToolTests(FeatureTestsFixture fixture, ITestOutputHelper output)
     : ToolTests<FindImplementationsTool>(fixture, output)
 {
-    private string HierarchyPath => Path.Combine(TestSolutionDirectory, "ProjectCore", "Hierarchy.cs");
-
-    private string ContractsPath => Path.Combine(TestSolutionDirectory, "ProjectCore", "Contracts.cs");
+    
 
     [Fact]
     public async Task FindImplementationsAsync_WithInterfaceSymbol_ReturnsOrderedImplementations()

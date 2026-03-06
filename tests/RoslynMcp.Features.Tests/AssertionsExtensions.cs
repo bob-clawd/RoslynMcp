@@ -6,71 +6,56 @@ namespace RoslynMcp.Features.Tests;
 
 public static class AssertionsExtensions
 {
-    extension(string text)
+    internal static void ShouldNotBeEmpty(this string text)
     {
-        internal void ShouldNotBeEmpty()
-        {
-            string.IsNullOrEmpty(text).IsFalse();
-        }
-    }
-    
-    extension(ErrorInfo? error)
-    {
-        internal void ShouldBeNone()
-        {
-            error.IsNull();
-        }
-
-        internal void ShouldHaveCode(string expectedCode)
-        {
-            error.IsNotNull();
-            error!.Code.Is(expectedCode);
-        }
+        string.IsNullOrEmpty(text).IsFalse();
     }
 
-    extension(ResolvedSymbolSummary? symbol)
+    internal static void ShouldBeNone(this ErrorInfo? error)
     {
-        internal void ShouldMatchResolvedSymbol(string expectedDisplayName, string expectedKind, string expectedFileName)
-        {
-            symbol.IsNotNull();
-            symbol!.DisplayName.Is(expectedDisplayName);
-            symbol.Kind.Is(expectedKind);
-            symbol.FilePath.EndsWith(expectedFileName, StringComparison.OrdinalIgnoreCase).IsTrue();
-            symbol.SymbolId.ShouldNotBeEmpty();
-        }
+        error.IsNull();
     }
-    
-    extension(IReadOnlyList<SourceLocation> references)
-    {
-        internal void ShouldMatchReferences(params (string FileName, int Line)[] expected)
-        {
-            references.Count.Is(expected.Length);
 
-            for (var i = 0; i < expected.Length; i++)
-            {
-                references[i].FilePath.EndsWith(expected[i].FileName, StringComparison.OrdinalIgnoreCase).IsTrue();
-                references[i].Line.Is(expected[i].Line);
-            }
+    internal static void ShouldHaveCode(this ErrorInfo? error, string expectedCode)
+    {
+        error.IsNotNull();
+        error!.Code.Is(expectedCode);
+    }
+
+    internal static void ShouldMatchResolvedSymbol(this ResolvedSymbolSummary? symbol, string expectedDisplayName, string expectedKind, string expectedFileName)
+    {
+        symbol.IsNotNull();
+        symbol!.DisplayName.Is(expectedDisplayName);
+        symbol.Kind.Is(expectedKind);
+        symbol.FilePath.EndsWith(expectedFileName, StringComparison.OrdinalIgnoreCase).IsTrue();
+        symbol.SymbolId.ShouldNotBeEmpty();
+    }
+
+    internal static void ShouldMatchReferences(this IReadOnlyList<SourceLocation> references, params (string FileName, int Line)[] expected)
+    {
+        references.Count.Is(expected.Length);
+
+        for (var i = 0; i < expected.Length; i++)
+        {
+            references[i].FilePath.EndsWith(expected[i].FileName, StringComparison.OrdinalIgnoreCase).IsTrue();
+            references[i].Line.Is(expected[i].Line);
         }
     }
 
-    extension(IReadOnlyList<CodeSmellMatch> actual)
+    internal static void ShouldMatchFindings(this IReadOnlyList<CodeSmellMatch> actual, ExpectedCodeSmellFinding[] expected)
     {
-        internal void ShouldMatchFindings(ExpectedCodeSmellFinding[] expected)
+        actual.Count.Is(expected.Length);
+
+        for (var i = 0; i < expected.Length; i++)
         {
-            actual.Count.Is(expected.Length);
+            var actualFinding = actual[i];
+            var expectedFinding = expected[i];
 
-            for (var i = 0; i < expected.Length; i++)
-            {
-                var actualFinding = actual[i];
-                var expectedFinding = expected[i];
-
-                actualFinding.Location.Line.Is(expectedFinding.Line);
-                actualFinding.Location.Column.Is(expectedFinding.Column);
-                actualFinding.Title.Is(expectedFinding.Title);
-                actualFinding.Category.Is(expectedFinding.Category);
-                actualFinding.RiskLevel.Is(expectedFinding.RiskLevel);
-            }
+            actualFinding.Location.Line.Is(expectedFinding.Line);
+            actualFinding.Location.Column.Is(expectedFinding.Column);
+            actualFinding.Title.Is(expectedFinding.Title);
+            actualFinding.Category.Is(expectedFinding.Category);
+            actualFinding.RiskLevel.Is(expectedFinding.RiskLevel);
         }
     }
 }

@@ -1,4 +1,6 @@
+using Is.Assertions;
 using RoslynMcp.Core;
+using RoslynMcp.Core.Models;
 using RoslynMcp.Features.Tools;
 using Xunit;
 using Xunit.Abstractions;
@@ -10,15 +12,13 @@ public sealed record ExpectedCodeSmellFinding(int Line, int Column, string Title
 public sealed class FindCodeSmellsToolTests(FeatureTestsFixture fixture, ITestOutputHelper output)
     : ToolTests<FindCodeSmellsTool>(fixture, output)
 {
-    private string CodeSmellsPath => Path.Combine(Path.GetDirectoryName(Fixture.SolutionPath)!, "ProjectImpl", "CodeSmells.cs");
-
     [Fact]
     public async Task FindCodeSmellsAsync_WithNoOptionalFilters_PreservesCompatibility()
     {
         var result = await Sut.ExecuteAsync(CancellationToken.None, CodeSmellsPath);
 
         result.Error.ShouldBeNone();
-        result.Actions.ShouldMatchFindings(BaselineFindings);
+        ShouldMatchFindings(result.Actions, BaselineFindings);
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public sealed class FindCodeSmellsToolTests(FeatureTestsFixture fixture, ITestOu
         var limited = await Sut.ExecuteAsync(CancellationToken.None, CodeSmellsPath, maxFindings: 3);
 
         limited.Error.ShouldBeNone();
-        limited.Actions.ShouldMatchFindings(BaselineFindings[..3]);
+        ShouldMatchFindings(limited.Actions, BaselineFindings[..3]);
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class FindCodeSmellsToolTests(FeatureTestsFixture fixture, ITestOu
             riskLevels: ["blocked"]);
 
         filtered.Error.ShouldBeNone();
-        filtered.Actions.ShouldMatchFindings(BlockedFindings);
+        ShouldMatchFindings(filtered.Actions, BlockedFindings);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class FindCodeSmellsToolTests(FeatureTestsFixture fixture, ITestOu
             categories: ["analyzer"]);
 
         filtered.Error.ShouldBeNone();
-        filtered.Actions.ShouldMatchFindings(AnalyzerFindings);
+        ShouldMatchFindings(filtered.Actions, AnalyzerFindings);
     }
 
     [Fact]
@@ -123,4 +123,21 @@ public sealed class FindCodeSmellsToolTests(FeatureTestsFixture fixture, ITestOu
         new(40, 5, "Convert comment to documentation comment", "roslynator", "blocked"),
         new(25, 24, "Parenthesize 'value * 42'", "roslynator", "blocked")
     ];
+    
+    private static void ShouldMatchFindings(IReadOnlyList<CodeSmellMatch> actual, ExpectedCodeSmellFinding[] expected)
+    {
+        actual.Count.Is(expected.Length);
+
+        for (var i = 0; i < expected.Length; i++)
+        {
+            var actualFinding = actual[i];
+            var expectedFinding = expected[i];
+
+            actualFinding.Location.Line.Is(expectedFinding.Line);
+            actualFinding.Location.Column.Is(expectedFinding.Column);
+            actualFinding.Title.Is(expectedFinding.Title);
+            actualFinding.Category.Is(expectedFinding.Category);
+            actualFinding.RiskLevel.Is(expectedFinding.RiskLevel);
+        }
+    }
 }
