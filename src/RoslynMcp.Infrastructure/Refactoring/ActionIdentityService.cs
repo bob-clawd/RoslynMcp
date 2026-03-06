@@ -1,4 +1,4 @@
-using RoslynMcp.Core.Models.Common;
+using RoslynMcp.Core.Models;
 using System.Text;
 
 namespace RoslynMcp.Infrastructure.Refactoring;

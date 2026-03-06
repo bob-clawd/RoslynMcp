@@ -1,6 +1,5 @@
 using RoslynMcp.Core;
-using RoslynMcp.Core.Models.Common;
-using RoslynMcp.Core.Models.Navigation;
+using RoslynMcp.Core.Models;
 using Microsoft.Extensions.Logging;
 
 namespace RoslynMcp.Infrastructure.Navigation;

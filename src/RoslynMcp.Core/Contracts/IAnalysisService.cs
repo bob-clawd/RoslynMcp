@@ -1,4 +1,4 @@
-using RoslynMcp.Core.Models.Analysis;
+using RoslynMcp.Core.Models;
 
 namespace RoslynMcp.Core.Contracts;
 

@@ -1,4 +1,4 @@
-using RoslynMcp.Core.Models.Analysis;
+using RoslynMcp.Core.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;

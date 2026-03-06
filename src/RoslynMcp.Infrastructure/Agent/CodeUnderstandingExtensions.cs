@@ -1,7 +1,6 @@
 using Microsoft.CodeAnalysis;
 using System.Collections.Immutable;
-using RoslynMcp.Core.Models.Agent;
-using RoslynMcp.Core.Models.Analysis;
+using RoslynMcp.Core.Models;
 using RoslynMcp.Infrastructure.Navigation;
 
 namespace RoslynMcp.Infrastructure.Agent;

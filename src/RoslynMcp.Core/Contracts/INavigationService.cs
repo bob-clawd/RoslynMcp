@@ -1,4 +1,4 @@
-using RoslynMcp.Core.Models.Navigation;
+using RoslynMcp.Core.Models;
 
 namespace RoslynMcp.Core.Contracts;
 

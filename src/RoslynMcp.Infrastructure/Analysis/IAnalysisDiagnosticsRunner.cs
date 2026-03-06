@@ -1,4 +1,4 @@
-using RoslynMcp.Core.Models.Analysis;
+using RoslynMcp.Core.Models;
 using Microsoft.CodeAnalysis;
 
 namespace RoslynMcp.Infrastructure.Analysis;

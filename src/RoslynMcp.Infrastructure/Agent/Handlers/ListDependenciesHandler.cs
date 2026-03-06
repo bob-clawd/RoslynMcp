@@ -1,5 +1,5 @@
 using RoslynMcp.Core;
-using RoslynMcp.Core.Models.Agent;
+using RoslynMcp.Core.Models;
 using Microsoft.CodeAnalysis;
 
 namespace RoslynMcp.Infrastructure.Agent.Handlers;
@@ -17,9 +17,8 @@ internal sealed class ListDependenciesHandler
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var (solution, solutionError) = await _queries.GetCurrentSolutionWithAutoBootstrapAsync(
+        var (solution, solutionError) = await _queries.GetCurrentSolutionAsync(
             "Call load_solution first to list dependencies.",
-            request.ProjectPath,
             ct).ConfigureAwait(false);
         if (solution == null)
         {
@@ -48,7 +47,20 @@ internal sealed class ListDependenciesHandler
         var hasProjectName = !string.IsNullOrWhiteSpace(request.ProjectName);
         var hasProjectId = !string.IsNullOrWhiteSpace(request.ProjectId);
         var selectorCount = (hasProjectPath ? 1 : 0) + (hasProjectName ? 1 : 0) + (hasProjectId ? 1 : 0);
-        var selectorProvided = selectorCount == 1;
+
+        if (selectorCount == 0)
+        {
+            return new ListDependenciesResult(
+                Array.Empty<ProjectDependency>(),
+                0,
+                AgentErrorInfo.Create(
+                    ErrorCodes.InvalidInput,
+                    "A project selector is required. Provide exactly one of projectPath, projectName, or projectId.",
+                    "Call list_dependencies with one selector from load_solution results.",
+                    ("field", "project selector"),
+                    ("expected", "projectPath|projectName|projectId")),
+                Array.Empty<ProjectDependencyEdge>());
+        }
 
         if (selectorCount > 1)
         {
@@ -89,11 +101,11 @@ internal sealed class ListDependenciesHandler
             request.ProjectPath,
             request.ProjectName,
             request.ProjectId,
-            selectorRequired: false,
+            selectorRequired: true,
             toolName: "list_dependencies",
             out var selectorError);
 
-        if (selectorProvided && selectorError != null)
+        if (selectorError != null)
         {
             return new ListDependenciesResult(
                 Array.Empty<ProjectDependency>(),
@@ -102,65 +114,31 @@ internal sealed class ListDependenciesHandler
                 Array.Empty<ProjectDependencyEdge>());
         }
 
-        var targetProject = selectorProvided ? selectedProjects[0] : null;
+        var targetProject = selectedProjects[0];
         var edgeByKey = new Dictionary<string, ProjectDependencyEdge>(StringComparer.Ordinal);
         var dependencyById = new Dictionary<string, ProjectDependency>(StringComparer.Ordinal);
 
-        if (targetProject != null)
+        if (direction == "outgoing" || direction == "both")
         {
-            if (direction == "outgoing" || direction == "both")
+            foreach (var reference in targetProject.ProjectReferences.OrderBy(static r => r.ProjectId.Id.ToString(), StringComparer.Ordinal))
             {
-                foreach (var reference in targetProject.ProjectReferences.OrderBy(static r => r.ProjectId.Id.ToString(), StringComparer.Ordinal))
+                var dependencyProject = solution.GetProject(reference.ProjectId);
+                if (dependencyProject == null)
                 {
-                    var dependencyProject = solution.GetProject(reference.ProjectId);
-                    if (dependencyProject == null)
-                    {
-                        continue;
-                    }
-
-                    AddDependencyEdge(targetProject, dependencyProject, edgeByKey, dependencyById, counterpart: dependencyProject);
+                    continue;
                 }
-            }
 
-            if (direction == "incoming" || direction == "both")
-            {
-                foreach (var project in solution.Projects)
-                {
-                    if (project.ProjectReferences.Any(r => r.ProjectId == targetProject.Id))
-                    {
-                        AddDependencyEdge(project, targetProject, edgeByKey, dependencyById, counterpart: project);
-                    }
-                }
+                AddDependencyEdge(targetProject, dependencyProject, edgeByKey, dependencyById, counterpart: dependencyProject);
             }
         }
-        else
+
+        if (direction == "incoming" || direction == "both")
         {
-            var allReferenceEdges = new List<(Project Source, Project Target)>();
             foreach (var project in solution.Projects)
             {
-                foreach (var reference in project.ProjectReferences)
+                if (project.ProjectReferences.Any(r => r.ProjectId == targetProject.Id))
                 {
-                    var dependencyProject = solution.GetProject(reference.ProjectId);
-                    if (dependencyProject != null)
-                    {
-                        allReferenceEdges.Add((project, dependencyProject));
-                    }
-                }
-            }
-
-            if (direction == "outgoing" || direction == "both")
-            {
-                foreach (var (source, target) in allReferenceEdges)
-                {
-                    AddDependencyEdge(source, target, edgeByKey, dependencyById, counterpart: target);
-                }
-            }
-
-            if (direction == "incoming" || direction == "both")
-            {
-                foreach (var (source, target) in allReferenceEdges)
-                {
-                    AddDependencyEdge(target, source, edgeByKey, dependencyById, counterpart: source);
+                    AddDependencyEdge(project, targetProject, edgeByKey, dependencyById, counterpart: project);
                 }
             }
         }

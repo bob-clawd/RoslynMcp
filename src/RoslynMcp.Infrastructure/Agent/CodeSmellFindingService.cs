@@ -1,8 +1,6 @@
 using RoslynMcp.Core.Contracts;
 using RoslynMcp.Core;
-using RoslynMcp.Core.Models.Agent;
-using RoslynMcp.Core.Models.Common;
-using RoslynMcp.Core.Models.Refactoring;
+using RoslynMcp.Core.Models;
 using RoslynMcp.Infrastructure.Analysis;
 using RoslynMcp.Infrastructure.Navigation;
 using RoslynMcp.Infrastructure.Workspace;
@@ -34,9 +32,7 @@ public sealed class CodeSmellFindingService : ICodeSmellFindingService
 
         if (path is null)
         {
-            return CreateInvalidInputResult(
-                "path is required.",
-                ("field", "path"));
+            return CreateInvalidInputResult("path is required.", ("field", "path"));
         }
 
         var (solution, solutionError) = await _solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);

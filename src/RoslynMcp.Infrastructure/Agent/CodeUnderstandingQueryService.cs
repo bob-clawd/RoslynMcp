@@ -1,9 +1,6 @@
 using RoslynMcp.Core;
 using RoslynMcp.Core.Contracts;
-using RoslynMcp.Core.Models.Agent;
-using RoslynMcp.Core.Models.Analysis;
-using RoslynMcp.Core.Models.Common;
-using RoslynMcp.Core.Models.Navigation;
+using RoslynMcp.Core.Models;
 using RoslynMcp.Infrastructure.Navigation;
 using RoslynMcp.Infrastructure.Workspace;
 using Microsoft.CodeAnalysis;
@@ -69,6 +66,19 @@ internal sealed class CodeUnderstandingQueryService
         }
 
         return (autoLoadedSolution, null);
+    }
+
+    public async Task<(Solution? Solution, ErrorInfo? Error)> GetCurrentSolutionAsync(
+        string noSolutionNextAction,
+        CancellationToken ct)
+    {
+        var (solution, error) = await _solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
+        if (solution != null)
+        {
+            return (solution, null);
+        }
+
+        return (null, AgentErrorInfo.Normalize(error, noSolutionNextAction));
     }
 
     public async Task<IReadOnlyList<HotspotSummary>> BuildHotspotsAsync(

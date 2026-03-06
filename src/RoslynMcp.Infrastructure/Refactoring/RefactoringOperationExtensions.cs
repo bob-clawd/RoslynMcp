@@ -4,8 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
-using RoslynMcp.Core.Models.Common;
-using RoslynMcp.Core.Models.Refactoring;
+using RoslynMcp.Core.Models;
 using System.Collections.Immutable;
 using System.Text;
 

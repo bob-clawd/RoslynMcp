@@ -1,5 +1,5 @@
 using RoslynMcp.Core;
-using RoslynMcp.Core.Models.Agent;
+using RoslynMcp.Core.Models;
 using RoslynMcp.Infrastructure.Navigation;
 
 namespace RoslynMcp.Infrastructure.Agent.Handlers;

@@ -1,7 +1,5 @@
 using RoslynMcp.Core;
-using RoslynMcp.Core.Models.Agent;
-using RoslynMcp.Core.Models.Common;
-using RoslynMcp.Core.Models.Navigation;
+using RoslynMcp.Core.Models;
 using RoslynMcp.Infrastructure.Navigation;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;

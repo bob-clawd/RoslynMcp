@@ -1,6 +1,6 @@
 using RoslynMcp.Core;
 using RoslynMcp.Core.Contracts;
-using RoslynMcp.Core.Models.Common;
+using RoslynMcp.Core.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

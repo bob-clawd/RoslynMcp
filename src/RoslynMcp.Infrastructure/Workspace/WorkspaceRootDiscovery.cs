@@ -1,5 +1,5 @@
 using RoslynMcp.Core;
-using RoslynMcp.Core.Models.Common;
+using RoslynMcp.Core.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 

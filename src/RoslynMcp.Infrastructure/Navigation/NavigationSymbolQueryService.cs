@@ -1,5 +1,5 @@
 using RoslynMcp.Core;
-using RoslynMcp.Core.Models.Navigation;
+using RoslynMcp.Core.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 

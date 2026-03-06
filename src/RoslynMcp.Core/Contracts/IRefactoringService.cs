@@ -1,4 +1,4 @@
-using RoslynMcp.Core.Models.Refactoring;
+using RoslynMcp.Core.Models;
 
 namespace RoslynMcp.Core.Contracts;
 

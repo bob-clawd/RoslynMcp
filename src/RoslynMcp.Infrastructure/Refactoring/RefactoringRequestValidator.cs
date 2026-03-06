@@ -1,6 +1,5 @@
 using RoslynMcp.Core;
-using RoslynMcp.Core.Models.Common;
-using RoslynMcp.Core.Models.Refactoring;
+using RoslynMcp.Core.Models;
 
 namespace RoslynMcp.Infrastructure.Refactoring;
 

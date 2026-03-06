@@ -1,8 +1,6 @@
 using RoslynMcp.Core;
 using RoslynMcp.Core.Contracts;
-using RoslynMcp.Core.Models.Common;
-using RoslynMcp.Core.Models.Refactoring;
-using Microsoft.CodeAnalysis;
+using RoslynMcp.Core.Models;
 using Microsoft.CodeAnalysis.Rename;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;

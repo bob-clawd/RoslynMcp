@@ -1,7 +1,6 @@
 using RoslynMcp.Core;
 using RoslynMcp.Core.Contracts;
-using RoslynMcp.Core.Models.Analysis;
-using RoslynMcp.Core.Models.Common;
+using RoslynMcp.Core.Models;
 using RoslynMcp.Infrastructure.Workspace;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

@@ -1,5 +1,4 @@
-using RoslynMcp.Core.Models.Analysis;
-using RoslynMcp.Core.Models.Common;
+using RoslynMcp.Core.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.Extensions.Logging;

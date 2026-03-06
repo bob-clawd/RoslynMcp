@@ -1,5 +1,5 @@
 using RoslynMcp.Core.Contracts;
-using RoslynMcp.Core.Models.Navigation;
+using RoslynMcp.Core.Models;
 using RoslynMcp.Infrastructure.Workspace;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

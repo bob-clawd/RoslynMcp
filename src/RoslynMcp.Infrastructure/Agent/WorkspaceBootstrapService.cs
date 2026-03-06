@@ -1,7 +1,5 @@
 using RoslynMcp.Core.Contracts;
-using RoslynMcp.Core.Models.Agent;
-using RoslynMcp.Core.Models.Analysis;
-using RoslynMcp.Core.Models.Common;
+using RoslynMcp.Core.Models;
 using RoslynMcp.Infrastructure.Workspace;
 
 namespace RoslynMcp.Infrastructure.Agent;

@@ -1,5 +1,5 @@
 using RoslynMcp.Core;
-using RoslynMcp.Core.Models.Common;
+using RoslynMcp.Core.Models;
 
 namespace RoslynMcp.Infrastructure.Agent;
 

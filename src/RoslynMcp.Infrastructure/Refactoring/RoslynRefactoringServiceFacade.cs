@@ -1,5 +1,5 @@
 using RoslynMcp.Core.Contracts;
-using RoslynMcp.Core.Models.Refactoring;
+using RoslynMcp.Core.Models;
 using RoslynMcp.Infrastructure.Workspace;
 using Microsoft.Extensions.Logging;
 
