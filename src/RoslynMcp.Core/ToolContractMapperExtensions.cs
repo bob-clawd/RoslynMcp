@@ -110,6 +110,10 @@ public static class ToolContractMapperExtensions
 
         public GetTypeHierarchyRequest ToGetTypeHierarchyRequest(bool? includeTransitive, int? maxDerived)
             => new(NormalizeSymbolId(solutionHintPath), includeTransitive ?? true, NormalizeNonNegative(maxDerived) ?? DefaultMaxDerived);
+
+        public RenameSymbolRequest ToRenameSymbolRequest(string? newName)
+            => new(NormalizeOptionalString(solutionHintPath),
+                NormalizeOptionalString(newName));
     }
 
     private static int NormalizePosition(int value)
