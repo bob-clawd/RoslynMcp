@@ -6,20 +6,36 @@ namespace RoslynMcp.Features.Tests;
 
 public static class AssertionsExtensions
 {
+    extension(string actualPath)
+    {
+        internal bool HasPathSuffix(string expectedPathSuffix)
+        {
+            return NormalizePathSeparators(actualPath).EndsWith(NormalizePathSeparators(expectedPathSuffix), StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal void ShouldEndWithPathSuffix(string expectedPathSuffix)
+        {
+            actualPath.HasPathSuffix(expectedPathSuffix).IsTrue();
+        }
+    }
+
     internal static void ShouldNotBeEmpty(this string text)
     {
         string.IsNullOrEmpty(text).IsFalse();
     }
 
-    internal static void ShouldBeNone(this ErrorInfo? error)
+    extension(ErrorInfo? error)
     {
-        error.IsNull();
-    }
+        internal void ShouldBeNone()
+        {
+            error.IsNull();
+        }
 
-    internal static void ShouldHaveCode(this ErrorInfo? error, string expectedCode)
-    {
-        error.IsNotNull();
-        error!.Code.Is(expectedCode);
+        internal void ShouldHaveCode(string expectedCode)
+        {
+            error.IsNotNull();
+            error!.Code.Is(expectedCode);
+        }
     }
 
     internal static void ShouldMatchResolvedSymbol(this ResolvedSymbolSummary? symbol, string expectedDisplayName, string expectedKind, string expectedFileName)
@@ -27,7 +43,7 @@ public static class AssertionsExtensions
         symbol.IsNotNull();
         symbol!.DisplayName.Is(expectedDisplayName);
         symbol.Kind.Is(expectedKind);
-        symbol.FilePath.EndsWith(expectedFileName, StringComparison.OrdinalIgnoreCase).IsTrue();
+        symbol.FilePath.ShouldEndWithPathSuffix(expectedFileName);
         symbol.SymbolId.ShouldNotBeEmpty();
     }
 
@@ -37,7 +53,7 @@ public static class AssertionsExtensions
 
         for (var i = 0; i < expected.Length; i++)
         {
-            references[i].FilePath.EndsWith(expected[i].FileName, StringComparison.OrdinalIgnoreCase).IsTrue();
+            references[i].FilePath.ShouldEndWithPathSuffix(expected[i].FileName);
             references[i].Line.Is(expected[i].Line);
         }
     }
@@ -57,5 +73,10 @@ public static class AssertionsExtensions
             actualFinding.Category.Is(expectedFinding.Category);
             actualFinding.RiskLevel.Is(expectedFinding.RiskLevel);
         }
+    }
+
+    private static string NormalizePathSeparators(string path)
+    {
+        return path.Replace('/', '\\');
     }
 }

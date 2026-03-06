@@ -30,12 +30,12 @@ public sealed class TraceCallFlowToolTests(FeatureTestsFixture fixture, ITestOut
         result.Depth.Is(2);
         result.Edges.Count.Is(10);
 
-        AssertEdge(result.Edges, runAsync.Symbol.SymbolId, startAsync.Symbol!.SymbolId, "ProjectApp\\AppOrchestrator.cs", 20);
-        AssertEdge(result.Edges, runAsync.Symbol.SymbolId, executeFlowAsync.Symbol!.SymbolId, "ProjectApp\\AppOrchestrator.cs", 22);
-        AssertEdge(result.Edges, runAsync.Symbol.SymbolId, calculate.Symbol!.SymbolId, "ProjectApp\\AppOrchestrator.cs", 24);
-        AssertEdge(result.Edges, runAsync.Symbol.SymbolId, stop.Symbol!.SymbolId, "ProjectApp\\AppOrchestrator.cs", 26);
-        AssertEdge(result.Edges, startAsync.Symbol.SymbolId, changeState.Symbol!.SymbolId, "ProjectImpl\\ProcessingSession.Lifecycle.cs", 7);
-        AssertEdge(result.Edges, stop.Symbol.SymbolId, changeState.Symbol.SymbolId, "ProjectImpl\\ProcessingSession.Lifecycle.cs", 14);
+        AssertEdge(result.Edges, runAsync.Symbol.SymbolId, startAsync.Symbol!.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 20);
+        AssertEdge(result.Edges, runAsync.Symbol.SymbolId, executeFlowAsync.Symbol!.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 22);
+        AssertEdge(result.Edges, runAsync.Symbol.SymbolId, calculate.Symbol!.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 24);
+        AssertEdge(result.Edges, runAsync.Symbol.SymbolId, stop.Symbol!.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 26);
+        AssertEdge(result.Edges, startAsync.Symbol.SymbolId, changeState.Symbol!.SymbolId, Path.Combine("ProjectImpl", "ProcessingSession.Lifecycle.cs"), 7);
+        AssertEdge(result.Edges, stop.Symbol.SymbolId, changeState.Symbol.SymbolId, Path.Combine("ProjectImpl", "ProcessingSession.Lifecycle.cs"), 14);
 
         result.Transitions.Count.Is(1);
         AssertTransition(result.Transitions, "unknown", "unknown", 10);
@@ -58,15 +58,15 @@ public sealed class TraceCallFlowToolTests(FeatureTestsFixture fixture, ITestOut
         depthOne.Direction.Is("upstream");
         depthOne.Depth.Is(1);
         depthOne.Edges.Count.Is(1);
-        AssertEdge(depthOne.Edges, runAsync.Symbol!.SymbolId, executeFlowAsync.Symbol.SymbolId, "ProjectApp\\AppOrchestrator.cs", 22);
+        AssertEdge(depthOne.Edges, runAsync.Symbol!.SymbolId, executeFlowAsync.Symbol.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 22);
 
         depthTwo.Error.ShouldBeNone();
         depthTwo.Direction.Is("upstream");
         depthTwo.Depth.Is(2);
         depthTwo.Edges.Count.Is(3);
-        AssertEdge(depthTwo.Edges, runAsync.Symbol.SymbolId, executeFlowAsync.Symbol.SymbolId, "ProjectApp\\AppOrchestrator.cs", 22);
-        AssertEdge(depthTwo.Edges, runFastAsync.Symbol!.SymbolId, runAsync.Symbol.SymbolId, "ProjectApp\\AppOrchestrator.cs", 79);
-        AssertEdge(depthTwo.Edges, runSafeAsync.Symbol!.SymbolId, runAsync.Symbol.SymbolId, "ProjectApp\\AppOrchestrator.cs", 84);
+        AssertEdge(depthTwo.Edges, runAsync.Symbol.SymbolId, executeFlowAsync.Symbol.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 22);
+        AssertEdge(depthTwo.Edges, runFastAsync.Symbol!.SymbolId, runAsync.Symbol.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 79);
+        AssertEdge(depthTwo.Edges, runSafeAsync.Symbol!.SymbolId, runAsync.Symbol.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 84);
         depthTwo.Transitions.Count.Is(1);
         AssertTransition(depthTwo.Transitions, "unknown", "unknown", 3);
     }
@@ -89,10 +89,10 @@ public sealed class TraceCallFlowToolTests(FeatureTestsFixture fixture, ITestOut
         result.Depth.Is(2);
         result.Edges.Count.Is(4);
 
-        AssertEdge(result.Edges, runAsync.Symbol!.SymbolId, executeFlowAsync.Symbol.SymbolId, "ProjectApp\\AppOrchestrator.cs", 22);
-        AssertEdge(result.Edges, runFastAsync.Symbol!.SymbolId, runAsync.Symbol.SymbolId, "ProjectApp\\AppOrchestrator.cs", 79);
-        AssertEdge(result.Edges, runSafeAsync.Symbol!.SymbolId, runAsync.Symbol.SymbolId, "ProjectApp\\AppOrchestrator.cs", 84);
-        AssertEdge(result.Edges, executeFlowAsync.Symbol.SymbolId, operationExecuteAsync.Symbol!.SymbolId, "ProjectApp\\AppOrchestrator.cs", 55);
+        AssertEdge(result.Edges, runAsync.Symbol!.SymbolId, executeFlowAsync.Symbol.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 22);
+        AssertEdge(result.Edges, runFastAsync.Symbol!.SymbolId, runAsync.Symbol.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 79);
+        AssertEdge(result.Edges, runSafeAsync.Symbol!.SymbolId, runAsync.Symbol.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 84);
+        AssertEdge(result.Edges, executeFlowAsync.Symbol.SymbolId, operationExecuteAsync.Symbol!.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 55);
         result.Transitions.Count.Is(1);
         AssertTransition(result.Transitions, "unknown", "unknown", 4);
     }
@@ -106,13 +106,13 @@ public sealed class TraceCallFlowToolTests(FeatureTestsFixture fixture, ITestOut
         result.RootSymbol.IsNotNull();
         result.RootSymbol!.Name.Is("ExecuteFlowAsync");
         result.RootSymbol.Kind.Is("Method");
-        result.RootSymbol.DeclarationLocation.FilePath.IsEndingWith("ProjectApp\\AppOrchestrator.cs");
+        result.RootSymbol.DeclarationLocation.FilePath.ShouldEndWithPathSuffix(Path.Combine("ProjectApp", "AppOrchestrator.cs"));
         result.RootSymbol.DeclarationLocation.Line.Is(53);
         result.Direction.Is("downstream");
         result.Depth.Is(1);
         result.Edges.Count.Is(1);
         result.Edges[0].FromSymbolId.Is(result.RootSymbol.SymbolId);
-        result.Edges[0].Location.FilePath.IsEndingWith("ProjectApp\\AppOrchestrator.cs");
+        result.Edges[0].Location.FilePath.ShouldEndWithPathSuffix(Path.Combine("ProjectApp", "AppOrchestrator.cs"));
         result.Edges[0].Location.Line.Is(55);
     }
 
@@ -159,7 +159,7 @@ public sealed class TraceCallFlowToolTests(FeatureTestsFixture fixture, ITestOut
         edges.Any(edge =>
             edge.FromSymbolId == fromSymbolId &&
             edge.ToSymbolId == toSymbolId &&
-            edge.Location.FilePath.IsEndingWith(expectedFileSuffix) &&
+            edge.Location.FilePath.HasPathSuffix(expectedFileSuffix) &&
             edge.Location.Line == expectedLine).IsTrue();
     }
 

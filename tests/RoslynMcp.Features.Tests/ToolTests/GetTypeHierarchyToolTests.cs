@@ -21,13 +21,13 @@ public sealed class GetTypeHierarchyToolTests(FeatureTestsFixture fixture, ITest
         result.Symbol.IsNotNull();
         result.Symbol!.Name.Is("DerivedClass");
         result.Symbol.Kind.Is("NamedType");
-        result.Symbol.DeclarationLocation.FilePath.EndsWith("ProjectCore\\Hierarchy.cs", StringComparison.OrdinalIgnoreCase).IsTrue();
+        result.Symbol.DeclarationLocation.FilePath.ShouldEndWithPathSuffix(Path.Combine("ProjectCore", "Hierarchy.cs"));
         result.Symbol.DeclarationLocation.Line.Is(23);
 
         result.BaseTypes.Select(static type => type.Name).ToArray().Is(new[] { "BaseClass", "Object" });
-        
-        ShouldMatchSymbols(result.ImplementedInterfaces, ("IWorker", "NamedType", "ProjectCore\\Hierarchy.cs", 3, null));
-        ShouldMatchSymbols(result.DerivedTypes, ("LeafClass", "NamedType", "ProjectCore\\Hierarchy.cs", 28, null));
+
+        ShouldMatchSymbols(result.ImplementedInterfaces, ("IWorker", "NamedType", Path.Combine("ProjectCore", "Hierarchy.cs"), 3, null));
+        ShouldMatchSymbols(result.DerivedTypes, ("LeafClass", "NamedType", Path.Combine("ProjectCore", "Hierarchy.cs"), 28, null));
     }
 
     [Fact]
@@ -43,8 +43,8 @@ public sealed class GetTypeHierarchyToolTests(FeatureTestsFixture fixture, ITest
 
         result.BaseTypes.Select(static type => type.Name).Is("BaseClass");
         result.ImplementedInterfaces.IsEmpty();
-        
-        ShouldMatchSymbols(result.DerivedTypes, ("LeafClass", "NamedType", "ProjectCore\\Hierarchy.cs", 28, null));
+
+        ShouldMatchSymbols(result.DerivedTypes, ("LeafClass", "NamedType", Path.Combine("ProjectCore", "Hierarchy.cs"), 28, null));
     }
 
     [Fact]
@@ -62,12 +62,12 @@ public sealed class GetTypeHierarchyToolTests(FeatureTestsFixture fixture, ITest
         result.ImplementedInterfaces.IsEmpty();
 
         ShouldMatchSymbols(result.DerivedTypes,
-            ("BaseClass", "NamedType", "ProjectCore\\Hierarchy.cs", 18, null),
-            ("DerivedClass", "NamedType", "ProjectCore\\Hierarchy.cs", 23, null),
-            ("LeafClass", "NamedType", "ProjectCore\\Hierarchy.cs", 28, null),
-            ("RoundRobinWorker", "NamedType", "ProjectImpl\\WorkItemOperations.cs", 5, null),
-            ("WorkerA", "NamedType", "ProjectCore\\Hierarchy.cs", 8, null),
-            ("WorkerB", "NamedType", "ProjectCore\\Hierarchy.cs", 13, null));
+            ("BaseClass", "NamedType", Path.Combine("ProjectCore", "Hierarchy.cs"), 18, null),
+            ("DerivedClass", "NamedType", Path.Combine("ProjectCore", "Hierarchy.cs"), 23, null),
+            ("LeafClass", "NamedType", Path.Combine("ProjectCore", "Hierarchy.cs"), 28, null),
+            ("RoundRobinWorker", "NamedType", Path.Combine("ProjectImpl", "WorkItemOperations.cs"), 5, null),
+            ("WorkerA", "NamedType", Path.Combine("ProjectCore", "Hierarchy.cs"), 8, null),
+            ("WorkerB", "NamedType", Path.Combine("ProjectCore", "Hierarchy.cs"), 13, null));
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class GetTypeHierarchyToolTests(FeatureTestsFixture fixture, ITest
         result.Symbol.IsNotNull();
         result.Symbol!.Name.Is("BaseClass");
         result.DerivedTypes.Count.Is(1);
-        ShouldMatchSymbols(result.DerivedTypes, ("DerivedClass", "NamedType", "ProjectCore\\Hierarchy.cs", 23, null));
+        ShouldMatchSymbols(result.DerivedTypes, ("DerivedClass", "NamedType", Path.Combine("ProjectCore", "Hierarchy.cs"), 23, null));
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class GetTypeHierarchyToolTests(FeatureTestsFixture fixture, ITest
             actual[i].Name.Is(expected[i].Name);
             actual[i].Kind.Is(expected[i].Kind);
             actual[i].ContainingType.Is(expected[i].ContainingType);
-            actual[i].DeclarationLocation.FilePath.EndsWith(expected[i].FileName, StringComparison.OrdinalIgnoreCase).IsTrue();
+            actual[i].DeclarationLocation.FilePath.ShouldEndWithPathSuffix(expected[i].FileName);
             actual[i].DeclarationLocation.Line.Is(expected[i].Line);
         }
     }

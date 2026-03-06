@@ -15,7 +15,7 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         symbol.IsNotNull();
         symbol!.DisplayName.Contains(expectedName, StringComparison.Ordinal).IsTrue();
         symbol.Kind.Is(expectedKind);
-        symbol.FilePath.EndsWith(expectedFileName, StringComparison.OrdinalIgnoreCase).IsTrue();
+        symbol.FilePath.ShouldEndWithPathSuffix(expectedFileName);
         symbol.Line.Is(expectedLine);
         symbol.SymbolId.ShouldNotBeEmpty();
     }
@@ -28,7 +28,7 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         result.Error.ShouldBeNone();
         result.IsAmbiguous.Is(false);
         result.Candidates.IsEmpty();
-        ShouldMatchResolvedSymbol(result.Symbol, "AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
+        ShouldMatchResolvedSymbol(result.Symbol, "AppOrchestrator", "NamedType", Path.Combine("ProjectApp", "AppOrchestrator.cs"));
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         result.Error.ShouldBeNone();
         result.IsAmbiguous.IsFalse();
         result.Candidates.IsEmpty();
-        ShouldMatchResolvedSymbol(result.Symbol, "AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
+        ShouldMatchResolvedSymbol(result.Symbol, "AppOrchestrator", "NamedType", Path.Combine("ProjectApp", "AppOrchestrator.cs"));
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         result.Error.ShouldBeNone();
         result.IsAmbiguous.IsFalse();
         result.Candidates.IsEmpty();
-        ShouldMatchResolvedSymbol(result.Symbol, "AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
+        ShouldMatchResolvedSymbol(result.Symbol, "AppOrchestrator", "NamedType", Path.Combine("ProjectApp", "AppOrchestrator.cs"));
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         result.Error.ShouldBeNone();
         result.IsAmbiguous.IsFalse();
         result.Candidates.IsEmpty();
-        ShouldMatchResolvedMember(result.Symbol, "ExecuteFlowAsync", "Method", "ProjectApp\\AppOrchestrator.cs", 53);
+        ShouldMatchResolvedMember(result.Symbol, "ExecuteFlowAsync", "Method", Path.Combine("ProjectApp", "AppOrchestrator.cs"), 53);
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         result.Error.ShouldBeNone();
         result.IsAmbiguous.IsFalse();
         result.Candidates.IsEmpty();
-        ShouldMatchResolvedMember(result.Symbol, "ExecuteFlowAsync", "Method", "ProjectApp\\AppOrchestrator.cs", 53);
+        ShouldMatchResolvedMember(result.Symbol, "ExecuteFlowAsync", "Method", Path.Combine("ProjectApp", "AppOrchestrator.cs"), 53);
     }
 
     [Fact]
@@ -81,14 +81,14 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         var initial = await Sut.ExecuteAsync(CancellationToken.None, qualifiedName: "ProjectApp.AppOrchestrator", projectName: "ProjectApp");
 
         initial.Error.ShouldBeNone();
-        ShouldMatchResolvedSymbol(initial.Symbol, "AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
+        ShouldMatchResolvedSymbol(initial.Symbol, "AppOrchestrator", "NamedType", Path.Combine("ProjectApp", "AppOrchestrator.cs"));
 
         var roundtrip = await Sut.ExecuteAsync(CancellationToken.None, symbolId: initial.Symbol!.SymbolId);
 
         roundtrip.Error.ShouldBeNone();
         roundtrip.IsAmbiguous.IsFalse();
         roundtrip.Candidates.IsEmpty();
-        ShouldMatchResolvedSymbol(roundtrip.Symbol, "AppOrchestrator", "NamedType", "ProjectApp\\AppOrchestrator.cs");
+        ShouldMatchResolvedSymbol(roundtrip.Symbol, "AppOrchestrator", "NamedType", Path.Combine("ProjectApp", "AppOrchestrator.cs"));
         roundtrip.Symbol!.SymbolId.Is(initial.Symbol.SymbolId);
         roundtrip.Symbol.FilePath.Is(initial.Symbol.FilePath);
     }
@@ -102,7 +102,7 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         result.IsAmbiguous.Is(true);
         result.Symbol.IsNull();
         result.Candidates.Count.Is(2);
-        
+
         result.Candidates[0].SymbolId.Is("""7 "C#" (D (N "ProjectImpl" 0 (N "" 1 (U (S "ProjectImpl" 4) 3) 2) 1) "FastWorkItemOperation" 0 ! ! 0 0 0 (% 0) 0)""");
         (result.Candidates[0] is { DisplayName: "FastWorkItemOperation", Kind: "NamedType", ProjectName: "ProjectApp" }).IsTrue();
 
@@ -118,7 +118,7 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         result.Error.ShouldBeNone();
         result.IsAmbiguous.IsFalse();
         result.Candidates.IsEmpty();
-        ShouldMatchResolvedMember(result.Symbol, "RunReflectionPathAsync", "Method", "ProjectApp\\AppOrchestrator.cs", 33);
+        ShouldMatchResolvedMember(result.Symbol, "RunReflectionPathAsync", "Method", Path.Combine("ProjectApp", "AppOrchestrator.cs"), 33);
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
         result.Error.ShouldBeNone();
         result.IsAmbiguous.Is(false);
         result.Candidates.IsEmpty();
-        ShouldMatchResolvedSymbol(result.Symbol, "FastWorkItemOperation", "NamedType", "ProjectImpl\\WorkItemOperations.cs");
+        ShouldMatchResolvedSymbol(result.Symbol, "FastWorkItemOperation", "NamedType", Path.Combine("ProjectImpl", "WorkItemOperations.cs"));
     }
 
     [Fact]
@@ -175,13 +175,13 @@ public sealed class ResolveSymbolToolTests(FeatureTestsFixture fixture, ITestOut
 
         result.Error.ShouldHaveCode(ErrorCodes.InvalidInput);
     }
-    
+
     private static void ShouldMatchResolvedSymbol(ResolvedSymbolSummary? symbol, string expectedDisplayName, string expectedKind, string expectedFileName)
     {
         symbol.IsNotNull();
         symbol!.DisplayName.Is(expectedDisplayName);
         symbol.Kind.Is(expectedKind);
-        symbol.FilePath.EndsWith(expectedFileName, StringComparison.OrdinalIgnoreCase).IsTrue();
+        symbol.FilePath.ShouldEndWithPathSuffix(expectedFileName);
         symbol.SymbolId.ShouldNotBeEmpty();
     }
 }

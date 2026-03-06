@@ -21,12 +21,12 @@ public sealed class FindUsagesToolTests(FeatureTestsFixture fixture, ITestOutput
         result.Symbol.IsNotNull();
         result.Symbol!.Name.Is("IWorkItemOperation");
         result.TotalCount.Is(4);
-        
+
         ShouldMatchReferences(result.References,
-            ("ProjectApp\\AppOrchestrator.cs", 6),
-            ("ProjectApp\\AppOrchestrator.cs", 10),
-            ("ProjectImpl\\WorkItemOperations.cs", 15),
-            ("ProjectImpl\\WorkItemOperations.cs", 38));
+            (Path.Combine("ProjectApp", "AppOrchestrator.cs"), 6),
+            (Path.Combine("ProjectApp", "AppOrchestrator.cs"), 10),
+            (Path.Combine("ProjectImpl", "WorkItemOperations.cs"), 15),
+            (Path.Combine("ProjectImpl", "WorkItemOperations.cs"), 38));
     }
 
     [Fact]
@@ -52,10 +52,10 @@ public sealed class FindUsagesToolTests(FeatureTestsFixture fixture, ITestOutput
         result.Error.ShouldBeNone();
         result.Symbol.IsNotNull();
         result.TotalCount.Is(2);
-        
+
         ShouldMatchReferences(result.References,
-            ("ProjectApp\\AppOrchestrator.cs", 6),
-            ("ProjectApp\\AppOrchestrator.cs", 10));
+            (Path.Combine("ProjectApp", "AppOrchestrator.cs"), 6),
+            (Path.Combine("ProjectApp", "AppOrchestrator.cs"), 10));
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public sealed class FindUsagesToolTests(FeatureTestsFixture fixture, ITestOutput
         result.TotalCount.Is(0);
         result.References.IsEmpty();
     }
-    
+
     private async Task<string> ResolveWorkItemOperationSymbolIdAsync()
     {
         var resolver = Fixture.GetRequiredService<ResolveSymbolTool>();
@@ -116,14 +116,14 @@ public sealed class FindUsagesToolTests(FeatureTestsFixture fixture, ITestOutput
 
         return resolved.Symbol!.SymbolId;
     }
-    
+
     private static void ShouldMatchReferences(IReadOnlyList<SourceLocation> references, params (string FileName, int Line)[] expected)
     {
         references.Count.Is(expected.Length);
 
         for (var i = 0; i < expected.Length; i++)
         {
-            references[i].FilePath.EndsWith(expected[i].FileName, StringComparison.OrdinalIgnoreCase).IsTrue();
+            references[i].FilePath.ShouldEndWithPathSuffix(expected[i].FileName);
             references[i].Line.Is(expected[i].Line);
         }
     }

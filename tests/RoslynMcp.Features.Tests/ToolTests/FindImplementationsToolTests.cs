@@ -10,7 +10,6 @@ namespace RoslynMcp.Features.Tests.ToolTests;
 public sealed class FindImplementationsToolTests(FeatureTestsFixture fixture, ITestOutputHelper output)
     : ToolTests<FindImplementationsTool>(fixture, output)
 {
-    
 
     [Fact]
     public async Task FindImplementationsAsync_WithInterfaceSymbol_ReturnsOrderedImplementations()
@@ -23,16 +22,16 @@ public sealed class FindImplementationsToolTests(FeatureTestsFixture fixture, IT
         result.Symbol.IsNotNull();
         result.Symbol!.Name.Is("IWorker");
         result.Symbol.Kind.Is("NamedType");
-        result.Symbol.DeclarationLocation.FilePath.EndsWith("ProjectCore\\Hierarchy.cs", StringComparison.OrdinalIgnoreCase).IsTrue();
+        result.Symbol.DeclarationLocation.FilePath.ShouldEndWithPathSuffix(Path.Combine("ProjectCore", "Hierarchy.cs"));
         result.Symbol.DeclarationLocation.Line.Is(3);
 
         ShouldMatchImplementations(result.Implementations,
-            ("BaseClass", "NamedType", "ProjectCore\\Hierarchy.cs", 18, null),
-            ("DerivedClass", "NamedType", "ProjectCore\\Hierarchy.cs", 23, null),
-            ("LeafClass", "NamedType", "ProjectCore\\Hierarchy.cs", 28, null),
-            ("RoundRobinWorker", "NamedType", "ProjectImpl\\WorkItemOperations.cs", 5, null),
-            ("WorkerA", "NamedType", "ProjectCore\\Hierarchy.cs", 8, null),
-            ("WorkerB", "NamedType", "ProjectCore\\Hierarchy.cs", 13, null));
+            ("BaseClass", "NamedType", Path.Combine("ProjectCore", "Hierarchy.cs"), 18, null),
+            ("DerivedClass", "NamedType", Path.Combine("ProjectCore", "Hierarchy.cs"), 23, null),
+            ("LeafClass", "NamedType", Path.Combine("ProjectCore", "Hierarchy.cs"), 28, null),
+            ("RoundRobinWorker", "NamedType", Path.Combine("ProjectImpl", "WorkItemOperations.cs"), 5, null),
+            ("WorkerA", "NamedType", Path.Combine("ProjectCore", "Hierarchy.cs"), 8, null),
+            ("WorkerB", "NamedType", Path.Combine("ProjectCore", "Hierarchy.cs"), 13, null));
     }
 
     [Fact]
@@ -49,10 +48,10 @@ public sealed class FindImplementationsToolTests(FeatureTestsFixture fixture, IT
         result.Symbol.ContainingType.Is("global::ProjectCore.IWorker");
 
         ShouldMatchImplementations(result.Implementations,
-            ("Work", "Method", "ProjectCore\\Hierarchy.cs", 20, "global::ProjectCore.BaseClass"),
-            ("Work", "Method", "ProjectCore\\Hierarchy.cs", 10, "global::ProjectCore.WorkerA"),
-            ("Work", "Method", "ProjectCore\\Hierarchy.cs", 15, "global::ProjectCore.WorkerB"),
-            ("Work", "Method", "ProjectImpl\\WorkItemOperations.cs", 9, "global::ProjectImpl.RoundRobinWorker"));
+            ("Work", "Method", Path.Combine("ProjectCore", "Hierarchy.cs"), 20, "global::ProjectCore.BaseClass"),
+            ("Work", "Method", Path.Combine("ProjectCore", "Hierarchy.cs"), 10, "global::ProjectCore.WorkerA"),
+            ("Work", "Method", Path.Combine("ProjectCore", "Hierarchy.cs"), 15, "global::ProjectCore.WorkerB"),
+            ("Work", "Method", Path.Combine("ProjectImpl", "WorkItemOperations.cs"), 9, "global::ProjectImpl.RoundRobinWorker"));
     }
 
     [Fact]
@@ -129,7 +128,7 @@ public sealed class FindImplementationsToolTests(FeatureTestsFixture fixture, IT
             actual[i].Name.Is(expected[i].Name);
             actual[i].Kind.Is(expected[i].Kind);
             actual[i].ContainingType.Is(expected[i].ContainingType);
-            actual[i].DeclarationLocation.FilePath.EndsWith(expected[i].FileName, StringComparison.OrdinalIgnoreCase).IsTrue();
+            actual[i].DeclarationLocation.FilePath.ShouldEndWithPathSuffix(expected[i].FileName);
             actual[i].DeclarationLocation.Line.Is(expected[i].Line);
         }
     }

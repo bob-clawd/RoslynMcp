@@ -21,11 +21,11 @@ public sealed class ListMembersToolTests(FeatureTestsFixture fixture, ITestOutpu
         result.IncludeInherited.Is(false);
         result.TotalCount.Is(5);
         ShouldMatchMembers(result.Members,
-            ("ExecuteFlowAsync", "method", "private", false, "ProjectApp\\AppOrchestrator.cs", 53),
-            ("OnStateChanged", "method", "private", false, "ProjectApp\\AppOrchestrator.cs", 66),
-            ("OnStepCompleted", "method", "private", false, "ProjectApp\\AppOrchestrator.cs", 58),
-            ("RunAsync", "method", "public", false, "ProjectApp\\AppOrchestrator.cs", 15),
-            ("RunReflectionPathAsync", "method", "public", false, "ProjectApp\\AppOrchestrator.cs", 33));
+            ("ExecuteFlowAsync", "method", "private", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 53),
+            ("OnStateChanged", "method", "private", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 66),
+            ("OnStepCompleted", "method", "private", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 58),
+            ("RunAsync", "method", "public", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 15),
+            ("RunReflectionPathAsync", "method", "public", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 33));
     }
 
     [Fact]
@@ -37,11 +37,11 @@ public sealed class ListMembersToolTests(FeatureTestsFixture fixture, ITestOutpu
         result.IncludeInherited.Is(false);
         result.TotalCount.Is(5);
         ShouldMatchMembers(result.Members,
-            ("SampleId", "field", "private", true, "ProjectApp\\AppOrchestrator.cs", 8),
-            ("_operation", "field", "private", false, "ProjectApp\\AppOrchestrator.cs", 10),
-            ("_session", "field", "private", false, "ProjectApp\\AppOrchestrator.cs", 11),
-            ("_smells", "field", "private", false, "ProjectApp\\AppOrchestrator.cs", 12),
-            ("_steps", "field", "private", false, "ProjectApp\\AppOrchestrator.cs", 13));
+            ("SampleId", "field", "private", true, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 8),
+            ("_operation", "field", "private", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 10),
+            ("_session", "field", "private", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 11),
+            ("_smells", "field", "private", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 12),
+            ("_steps", "field", "private", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 13));
     }
 
     [Fact]
@@ -58,8 +58,8 @@ public sealed class ListMembersToolTests(FeatureTestsFixture fixture, ITestOutpu
         result.Error.ShouldBeNone();
         result.TotalCount.Is(2);
         ShouldMatchMembers(result.Members,
-            ("RunAsync", "method", "public", false, "ProjectApp\\AppOrchestrator.cs", 15),
-            ("RunReflectionPathAsync", "method", "public", false, "ProjectApp\\AppOrchestrator.cs", 33));
+            ("RunAsync", "method", "public", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 15),
+            ("RunReflectionPathAsync", "method", "public", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 33));
     }
 
     [Fact]
@@ -77,10 +77,10 @@ public sealed class ListMembersToolTests(FeatureTestsFixture fixture, ITestOutpu
         result.TotalCount.Is(4);
         result.Members.All(static member => !member.IsStatic).IsTrue();
         ShouldMatchMembers(result.Members,
-            ("_operation", "field", "private", false, "ProjectApp\\AppOrchestrator.cs", 10),
-            ("_session", "field", "private", false, "ProjectApp\\AppOrchestrator.cs", 11),
-            ("_smells", "field", "private", false, "ProjectApp\\AppOrchestrator.cs", 12),
-            ("_steps", "field", "private", false, "ProjectApp\\AppOrchestrator.cs", 13));
+            ("_operation", "field", "private", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 10),
+            ("_session", "field", "private", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 11),
+            ("_smells", "field", "private", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 12),
+            ("_steps", "field", "private", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 13));
     }
 
     [Fact]
@@ -136,11 +136,11 @@ public sealed class ListMembersToolTests(FeatureTestsFixture fixture, ITestOutpu
 
         pagedResult.Error.ShouldBeNone();
         pagedResult.TotalCount.Is(5);
-        
+
         ShouldMatchMembers(pagedResult.Members,
-            ("OnStateChanged", "method", "private", false, "ProjectApp\\AppOrchestrator.cs", 66),
-            ("OnStepCompleted", "method", "private", false, "ProjectApp\\AppOrchestrator.cs", 58));
-        
+            ("OnStateChanged", "method", "private", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 66),
+            ("OnStepCompleted", "method", "private", false, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 58));
+
         pagedResult.Members.Select(static member => member.DisplayName)
             .Is(fullResult.Members.Skip(1).Take(2).Select(static member => member.DisplayName));
     }
@@ -182,7 +182,7 @@ public sealed class ListMembersToolTests(FeatureTestsFixture fixture, ITestOutpu
             actual[i].Kind.Is(expected[i].Kind);
             actual[i].Accessibility.Is(expected[i].Accessibility);
             actual[i].IsStatic.Is(expected[i].IsStatic);
-            actual[i].FilePath.EndsWith(expected[i].FileName, StringComparison.OrdinalIgnoreCase).IsTrue();
+            actual[i].FilePath.ShouldEndWithPathSuffix(expected[i].FileName);
             actual[i].Line.Is(expected[i].Line);
             actual[i].SymbolId.ShouldNotBeEmpty();
         }
