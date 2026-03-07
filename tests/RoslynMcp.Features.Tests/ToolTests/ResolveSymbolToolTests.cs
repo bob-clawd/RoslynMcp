@@ -7,8 +7,8 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class ResolveSymbolToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
-    : SandboxedToolTests<ResolveSymbolTool>(fixture, output)
+public sealed class ResolveSymbolToolTests(SharedSandboxFixture fixture, ITestOutputHelper output)
+    : SharedToolTests<ResolveSymbolTool>(fixture, output)
 {
     private static void ShouldMatchResolvedMember(ResolvedSymbolSummary? symbol, string expectedName, string expectedKind, string expectedFileName, int expectedLine)
     {

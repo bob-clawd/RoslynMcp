@@ -5,16 +5,16 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class LoadSolutionToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
-    : SandboxedToolTests<LoadSolutionTool>(fixture, output)
+public sealed class LoadSolutionToolTests(SharedSandboxFixture fixture, ITestOutputHelper output)
+    : SharedToolTests<LoadSolutionTool>(fixture, output)
 {
     [Fact]
     public void LoadSolutionAsync_WithAbsoluteSolutionPath_LoadsExpectedProjects()
     {
-        var result = Fixture.LoadedSolution;
+        var result = Context.LoadedSolution;
 
-        result.SelectedSolutionPath.Is(Fixture.SolutionPath);
-        string.Equals(Fixture.SolutionPath, Fixture.CanonicalSolutionPath, StringComparison.OrdinalIgnoreCase).IsFalse();
+        result.SelectedSolutionPath.Is(Context.SolutionPath);
+        string.Equals(Context.SolutionPath, Context.CanonicalSolutionPath, StringComparison.OrdinalIgnoreCase).IsFalse();
         result.Error.ShouldBeNone();
 
         var projectNames = result.Projects.Select(static project => project.Name).ToArray();

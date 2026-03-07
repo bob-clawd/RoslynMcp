@@ -7,8 +7,8 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class FindUsagesToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
-    : SandboxedToolTests<FindUsagesTool>(fixture, output)
+public sealed class FindUsagesToolTests(SharedSandboxFixture fixture, ITestOutputHelper output)
+    : SharedToolTests<FindUsagesTool>(fixture, output)
 {
     [Fact]
     public async Task FindUsagesAsync_WithSolutionScope_ReturnsOrderedReferences()
@@ -108,7 +108,7 @@ public sealed class FindUsagesToolTests(SharedSandboxFeatureTestsFixture fixture
 
     private async Task<string> ResolveWorkItemOperationSymbolIdAsync()
     {
-        var resolver = Fixture.GetRequiredService<ResolveSymbolTool>();
+        var resolver = Context.GetRequiredService<ResolveSymbolTool>();
         var resolved = await resolver.ExecuteAsync(CancellationToken.None, path: ContractsPath, line: 31, column: 24);
 
         resolved.Error.ShouldBeNone();

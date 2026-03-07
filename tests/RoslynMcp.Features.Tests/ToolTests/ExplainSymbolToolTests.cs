@@ -6,8 +6,8 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class ExplainSymbolToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
-    : SandboxedToolTests<ExplainSymbolTool>(fixture, output)
+public sealed class ExplainSymbolToolTests(SharedSandboxFixture fixture, ITestOutputHelper output)
+    : SharedToolTests<ExplainSymbolTool>(fixture, output)
 {
     [Fact]
     public async Task ExplainSymbolAsync_WithSourcePosition_ReturnsExplanation()
@@ -20,7 +20,6 @@ public sealed class ExplainSymbolToolTests(SharedSandboxFeatureTestsFixture fixt
 
         result.RoleSummary.ShouldNotBeEmpty();
         result.Signature.ShouldNotBeEmpty();
-        
     }
 
     [Fact]

@@ -9,8 +9,8 @@ namespace RoslynMcp.Features.Tests.ToolTests;
 
 public sealed record ExpectedCodeSmellFinding(int Line, int Column, string Title, string Category, string RiskLevel);
 
-public sealed class FindCodeSmellsToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
-    : SandboxedToolTests<FindCodeSmellsTool>(fixture, output)
+public sealed class FindCodeSmellsToolTests(SharedSandboxFixture fixture, ITestOutputHelper output)
+    : SharedToolTests<FindCodeSmellsTool>(fixture, output)
 {
     [Fact]
     public async Task FindCodeSmellsAsync_WithNoOptionalFilters_PreservesCompatibility()
@@ -69,7 +69,7 @@ public sealed class FindCodeSmellsToolTests(SharedSandboxFeatureTestsFixture fix
 
         result.Error.ShouldHaveCode(ErrorCodes.InvalidInput);
     }
-    
+
     private static readonly ExpectedCodeSmellFinding[] BaselineFindings =
     [
         new(7, 5, "Convert comment to documentation comment", "roslynator", "blocked"),

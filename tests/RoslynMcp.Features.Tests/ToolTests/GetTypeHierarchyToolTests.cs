@@ -7,8 +7,8 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class GetTypeHierarchyToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
-    : SandboxedToolTests<GetTypeHierarchyTool>(fixture, output)
+public sealed class GetTypeHierarchyToolTests(SharedSandboxFixture fixture, ITestOutputHelper output)
+    : SharedToolTests<GetTypeHierarchyTool>(fixture, output)
 {
     [Fact]
     public async Task GetTypeHierarchyAsync_WithClassSymbol_ReturnsTransitiveHierarchy()
@@ -112,7 +112,7 @@ public sealed class GetTypeHierarchyToolTests(SharedSandboxFeatureTestsFixture f
 
     private async Task<string> ResolveSymbolIdAsync(string path, int line, int column)
     {
-        var resolver = Fixture.GetRequiredService<ResolveSymbolTool>();
+        var resolver = Context.GetRequiredService<ResolveSymbolTool>();
         var resolved = await resolver.ExecuteAsync(CancellationToken.None, path: path, line: line, column: column);
 
         resolved.Error.ShouldBeNone();

@@ -6,13 +6,13 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class ListDependenciesToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
-    : SandboxedToolTests<ListDependenciesTool>(fixture, output)
+public sealed class ListDependenciesToolTests(SharedSandboxFixture fixture, ITestOutputHelper output)
+    : SharedToolTests<ListDependenciesTool>(fixture, output)
 {
     [Fact]
     public async Task ListDependenciesAsync_WithOutgoingDirection_ReturnsOutgoingDependencies()
     {
-        var project = Fixture.GetProject("ProjectApp");
+        var project = Context.GetProject("ProjectApp");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectPath: project.Path, direction: "outgoing");
 
         result.Error.ShouldBeNone();
@@ -24,7 +24,7 @@ public sealed class ListDependenciesToolTests(SharedSandboxFeatureTestsFixture f
     [Fact]
     public async Task ListDependenciesAsync_WithIncomingDirection_ReturnsIncomingDependencies()
     {
-        var project = Fixture.GetProject("ProjectCore");
+        var project = Context.GetProject("ProjectCore");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, direction: "incoming");
 
         result.Error.ShouldBeNone();
@@ -36,7 +36,7 @@ public sealed class ListDependenciesToolTests(SharedSandboxFeatureTestsFixture f
     [Fact]
     public async Task ListDependenciesAsync_WithBothDirection_ReturnsOutgoingAndIncomingDependencies()
     {
-        var project = Fixture.GetProject("ProjectImpl");
+        var project = Context.GetProject("ProjectImpl");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, direction: "both");
 
         result.Error.ShouldBeNone();
@@ -56,7 +56,7 @@ public sealed class ListDependenciesToolTests(SharedSandboxFeatureTestsFixture f
     [Fact]
     public async Task ListDependenciesAsync_WhenMultipleProjectSelectorsProvided_ReturnsValidationError()
     {
-        var project = Fixture.GetProject("ProjectImpl");
+        var project = Context.GetProject("ProjectImpl");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectPath: project.Path, projectName: project.Name);
 
         result.Error.ShouldHaveCode(ErrorCodes.InvalidInput);

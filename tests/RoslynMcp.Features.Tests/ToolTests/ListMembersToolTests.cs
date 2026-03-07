@@ -7,8 +7,8 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class ListMembersToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
-    : SandboxedToolTests<ListMembersTool>(fixture, output)
+public sealed class ListMembersToolTests(SharedSandboxFixture fixture, ITestOutputHelper output)
+    : SharedToolTests<ListMembersTool>(fixture, output)
 {
     [Fact]
     public async Task ListMembersAsync_WithTypeSymbolIdAndMethodFilter_ReturnsOrderedMethods()
@@ -163,7 +163,7 @@ public sealed class ListMembersToolTests(SharedSandboxFeatureTestsFixture fixtur
 
     private async Task<string> GetTypeSymbolIdAsync(string projectName, string typeDisplayName)
     {
-        var listTypes = Fixture.GetRequiredService<ListTypesTool>();
+        var listTypes = Context.GetRequiredService<ListTypesTool>();
         var typeResult = await listTypes.ExecuteAsync(CancellationToken.None, projectName: projectName);
 
         typeResult.Error.ShouldBeNone();

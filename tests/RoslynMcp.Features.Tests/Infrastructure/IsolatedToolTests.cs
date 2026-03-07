@@ -11,11 +11,12 @@ public abstract class IsolatedToolTests<TTool> where TTool : notnull
         _output = output;
     }
 
-    protected Task<IsolatedSandboxFeatureTestContext> CreateContextAsync(CancellationToken cancellationToken = default)
-        => IsolatedSandboxFeatureTestContext.CreateAsync(cancellationToken);
+    protected Task<IsolatedSandboxContext> CreateContextAsync(CancellationToken cancellationToken = default)
+        => IsolatedSandboxContext.CreateAsync(cancellationToken);
 
-    protected static TTool GetSut(IsolatedSandboxFeatureTestContext context)
+    protected static TTool GetSut(IsolatedSandboxContext context)
         => context.GetRequiredService<TTool>();
 
-    protected void Trace(string message) => _output.WriteLine(typeof(TTool) + ": " + message);
+    protected void Trace(string message) =>
+        _output.WriteLine(typeof(TTool) + ": " + message);
 }

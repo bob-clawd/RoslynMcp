@@ -5,11 +5,11 @@ using RoslynMcp.Infrastructure;
 
 namespace RoslynMcp.Features.Tests;
 
-public abstract class FeatureTestFixtureBase : IAsyncDisposable
+public abstract class SandboxContext : IAsyncDisposable
 {
     private ServiceProvider? _provider;
 
-    protected FeatureTestFixtureBase()
+    protected SandboxContext()
     {
         RepositoryRoot = GetRepositoryRoot();
         CanonicalTestSolutionDirectory = Path.GetFullPath(Path.Combine(RepositoryRoot, "tests", "TestSolution"));
@@ -46,7 +46,7 @@ public abstract class FeatureTestFixtureBase : IAsyncDisposable
 
         if (_provider is not null || Sandbox is not null)
         {
-            throw new InvalidOperationException("The feature test fixture has already been initialized.");
+            throw new InvalidOperationException("The sandbox context has already been initialized.");
         }
 
         Sandbox = sandbox;

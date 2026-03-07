@@ -7,8 +7,8 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class FindImplementationsToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
-    : SandboxedToolTests<FindImplementationsTool>(fixture, output)
+public sealed class FindImplementationsToolTests(SharedSandboxFixture fixture, ITestOutputHelper output)
+    : SharedToolTests<FindImplementationsTool>(fixture, output)
 {
 
     [Fact]
@@ -108,7 +108,7 @@ public sealed class FindImplementationsToolTests(SharedSandboxFeatureTestsFixtur
 
     private async Task<string> ResolveSymbolIdAsync(string path, int line, int column)
     {
-        var resolver = Fixture.GetRequiredService<ResolveSymbolTool>();
+        var resolver = Context.GetRequiredService<ResolveSymbolTool>();
         var resolved = await resolver.ExecuteAsync(CancellationToken.None, path: path, line: line, column: column);
 
         resolved.Error.ShouldBeNone();

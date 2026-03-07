@@ -8,13 +8,13 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class ListTypesToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
-    : SandboxedToolTests<ListTypesTool>(fixture, output)
+public sealed class ListTypesToolTests(SharedSandboxFixture fixture, ITestOutputHelper output)
+    : SharedToolTests<ListTypesTool>(fixture, output)
 {
     [Fact]
     public async Task ListTypesAsync_WithProjectNameSelector_ReturnsExpectedTypes()
     {
-        var project = Fixture.GetProject("ProjectApp");
+        var project = Context.GetProject("ProjectApp");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name);
 
         result.ShouldMatchTypes(2, "AppEntryPoints", "AppOrchestrator");
@@ -23,7 +23,7 @@ public sealed class ListTypesToolTests(SharedSandboxFeatureTestsFixture fixture,
     [Fact]
     public async Task ListTypesAsync_WithProjectPathSelector_ReturnsExpectedTypes()
     {
-        var project = Fixture.GetProject("ProjectApp");
+        var project = Context.GetProject("ProjectApp");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectPath: project.Path);
 
         result.ShouldMatchTypes(2, "AppEntryPoints", "AppOrchestrator");
@@ -41,7 +41,7 @@ public sealed class ListTypesToolTests(SharedSandboxFeatureTestsFixture fixture,
     [Fact]
     public async Task ListTypesAsync_WithNamespacePrefixThatDoesNotMatch_ReturnsNoTypes()
     {
-        var project = Fixture.GetProject("ProjectImpl");
+        var project = Context.GetProject("ProjectImpl");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, namespacePrefix: "ProjectImpl.Internal");
 
         result.ShouldMatchTypes(0);
@@ -50,7 +50,7 @@ public sealed class ListTypesToolTests(SharedSandboxFeatureTestsFixture fixture,
     [Fact]
     public async Task ListTypesAsync_WithKindFilter_ReturnsOnlyRecordTypes()
     {
-        var project = Fixture.GetProject("ProjectCore");
+        var project = Context.GetProject("ProjectCore");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, kind: "record");
 
         result.ShouldMatchTypes(2, "OperationResult", "WorkItem");
@@ -60,7 +60,7 @@ public sealed class ListTypesToolTests(SharedSandboxFeatureTestsFixture fixture,
     [Fact]
     public async Task ListTypesAsync_WithAccessibilityFilter_ReturnsNoInternalTypes()
     {
-        var project = Fixture.GetProject("ProjectCore");
+        var project = Context.GetProject("ProjectCore");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectPath: project.Path, accessibility: "internal");
 
         result.ShouldMatchTypes(0);
@@ -69,7 +69,7 @@ public sealed class ListTypesToolTests(SharedSandboxFeatureTestsFixture fixture,
     [Fact]
     public async Task ListTypesAsync_WithLimitAndOffset_PaginatesDeterministically()
     {
-        var project = Fixture.GetProject("ProjectCore");
+        var project = Context.GetProject("ProjectCore");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, limit: 4, offset: 5);
 
         result.ShouldMatchTypes(14, "WorkerA", "WorkerB", "IFactory<T>", "IOperation<TInput, TResult>");
@@ -78,7 +78,7 @@ public sealed class ListTypesToolTests(SharedSandboxFeatureTestsFixture fixture,
     [Fact]
     public async Task ListTypesAsync_WithInvalidKind_ReturnsValidationError()
     {
-        var project = Fixture.GetProject("ProjectCore");
+        var project = Context.GetProject("ProjectCore");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, kind: "delegate");
 
         result.ShouldHaveError(ErrorCodes.InvalidInput, "kind must be one of: class, record, interface, enum, struct.");
@@ -89,7 +89,7 @@ public sealed class ListTypesToolTests(SharedSandboxFeatureTestsFixture fixture,
     [Fact]
     public async Task ListTypesAsync_WithInvalidAccessibility_ReturnsValidationError()
     {
-        var project = Fixture.GetProject("ProjectCore");
+        var project = Context.GetProject("ProjectCore");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, accessibility: "package");
 
         result.ShouldHaveError(ErrorCodes.InvalidInput, "accessibility must be one of: public, internal, protected, private, protected_internal, private_protected.");
@@ -119,7 +119,7 @@ public sealed class ListTypesToolTests(SharedSandboxFeatureTestsFixture fixture,
 
     private async Task<string> GetProjectIdAsync(string projectName)
     {
-        var accessor = Fixture.GetRequiredService<IRoslynSolutionAccessor>();
+        var accessor = Context.GetRequiredService<IRoslynSolutionAccessor>();
         var (solution, error) = await accessor.GetCurrentSolutionAsync(CancellationToken.None);
 
         error.ShouldBeNone();
