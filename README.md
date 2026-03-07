@@ -66,6 +66,7 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 | **Resolve Symbols**      | Get canonical IDs for any code symbol                             |
 | **Explain Symbols**      | Understand what a symbol does and where it's used                 |
 | **Trace Call Flow**      | See upstream callers or downstream callees                        |
+| **Find Callers**         | Return only immediate direct upstream callers                     |
 | **Find Usages**          | Locate all references to a type/member                            |
 | **Find Implementations** | Locate all implementaions of a interface or abstract class/method |
 | **Get Type Hierarchy**   | Explore type inheritance and derived types                        |
@@ -143,7 +144,7 @@ Parameters:
 
 ### `resolve_symbol`
 
-Use this tool when you have a source position (`path` + `line` + `column`), a qualified symbol name, or an existing `symbolId` and need the stable `symbolId` plus declaration location used by other navigation tools. This is often the first step before calling `explain_symbol`, `trace_call_flow`, or `find_usages`. Qualified-name lookup can search the whole loaded solution, but project selectors help disambiguate short names or duplicate symbols across projects.
+Use this tool when you have a source position (`path` + `line` + `column`), a qualified symbol name, or an existing `symbolId` and need the stable `symbolId` plus declaration location used by other navigation tools. This is often the first step before calling `explain_symbol`, `trace_call_flow`, `find_callers`, or `find_usages`. Qualified-name lookup can search the whole loaded solution, but project selectors help disambiguate short names or duplicate symbols across projects.
 
 Parameters:
 - `symbolId` (optional): An existing symbol ID to look up. Provide this OR `path`+`line`+`column` OR `qualifiedName`.
@@ -178,6 +179,14 @@ Parameters:
 - `column` (optional): Column number (1-based) pointing to the symbol in the source file.
 - `direction` (optional): Which direction to trace. `upstream` finds callers (who uses this). `downstream` finds callees (what this calls). `both` returns both directions. Defaults to `both`.
 - `depth` (optional): How many levels of the call chain to traverse. Defaults to `2`. Use larger values for deeper analysis. `null` behaves the same as omitting the parameter.
+
+
+### `find_callers`
+
+Use this tool when you need only the immediate direct callers of a symbol. It is a focused wrapper around `trace_call_flow` that always traces `upstream` with depth `1`, so it returns direct callers only and does not include transitive callers.
+
+Parameters:
+- `symbolId` (optional): The stable symbol ID, obtained from `resolve_symbol`, `list_types`, or `list_members`, for the symbol whose immediate direct callers you want to inspect.
 
 
 ### `find_usages`
