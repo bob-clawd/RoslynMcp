@@ -111,8 +111,6 @@ public sealed class WorkspaceBootstrapService : IWorkspaceBootstrapService
         return (discovered.SolutionPaths[0], null);
     }
 
-    private static bool IsExplicitSolutionPath(string? hint)
-        => !string.IsNullOrWhiteSpace(hint)
-            && (hint.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)
-                || hint.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase));
+    private static bool IsExplicitSolutionPath(string? hint) => !string.IsNullOrWhiteSpace(hint) &&
+        (hint.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) || hint.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase));
 }

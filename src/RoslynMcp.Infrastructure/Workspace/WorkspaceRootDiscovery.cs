@@ -5,14 +5,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace RoslynMcp.Infrastructure.Workspace;
 
-internal sealed class WorkspaceRootDiscovery : IWorkspaceRootDiscovery
+internal sealed class WorkspaceRootDiscovery(ILogger<WorkspaceRootDiscovery>? logger = null) : IWorkspaceRootDiscovery
 {
-    private readonly ILogger _logger;
-
-    public WorkspaceRootDiscovery(ILogger<WorkspaceRootDiscovery>? logger = null)
-    {
-        _logger = logger ?? NullLogger<WorkspaceRootDiscovery>.Instance;
-    }
+    private readonly ILogger _logger = logger ?? NullLogger<WorkspaceRootDiscovery>.Instance;
 
     public (string? NormalizedRoot, ErrorInfo? Error) NormalizeWorkspaceRoot(string? workspaceRoot)
     {

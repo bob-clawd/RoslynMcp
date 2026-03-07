@@ -56,20 +56,21 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 
 ## What You Can Use It For
 
-| Capability              | Description                                          |
-| ----------------------- | ---------------------------------------------------- |
-| **Load Solution**       | Initialize a .sln file and prepare the workspace     |
-| **Understand Codebase** | Quick orientation with complexity hotspots           |
-| **List Dependencies**   | Understand project relationships                     |
-| **List Types**          | Discover all classes, interfaces, enums in a project |
-| **List Members**        | Explore methods, properties, fields of any type      |
-| **Resolve Symbols**     | Get canonical IDs for any code symbol                |
-| **Explain Symbols**     | Understand what a symbol does and where it's used    |
-| **Trace Call Flow**     | See upstream callers or downstream callees           |
-| **Find Usages**         | Locate all references to a type/member               |
-| **Find Implementations**         | Locate all implementaions of a interface or abstract class/method               |
-| **Get Type Hierarchy**  | Explore type inheritance and derived types           |
-| **Find Code Smells**    | Detect potential issues in a file                    |
+| Capability               | Description                                                       |
+|--------------------------|-------------------------------------------------------------------|
+| **Load Solution**        | Loads a .sln/.slnx file and prepare the workspace                 |
+| **Understand Codebase**  | Quick orientation with complexity hotspots                        |
+| **List Dependencies**    | Understand project relationships                                  |
+| **List Types**           | Discover all classes, interfaces, enums in a project              |
+| **List Members**         | Explore methods, properties, fields of any type                   |
+| **Resolve Symbols**      | Get canonical IDs for any code symbol                             |
+| **Explain Symbols**      | Understand what a symbol does and where it's used                 |
+| **Trace Call Flow**      | See upstream callers or downstream callees                        |
+| **Find Usages**          | Locate all references to a type/member                            |
+| **Find Implementations** | Locate all implementaions of a interface or abstract class/method |
+| **Get Type Hierarchy**   | Explore type inheritance and derived types                        |
+| **Find Code Smells**     | Detect potential issues in a file                                 |
+| **Rename Symbol**        | Rename operation for types, methods, etc.                         |
 
 
 
@@ -214,3 +215,11 @@ Parameters:
 - `riskLevels` (optional): Accepted risk levels to include. Use values returned in `find_codesmells` results, such as `safe`, `review_required`, `high`, `low`, `medium`, or `info`.
 - `categories` (optional): Accepted categories to include. Empty or omitted means all categories are included.
 
+
+### `rename_symbol`
+
+Use this tool when you need to rename a symbol (type, method, property, field, parameter, local variable, etc.) across the entire solution. This performs a safe refactoring that updates all references to the symbol. Returns the list of changed files.
+
+Parameters:
+- `symbolId` (required): The symbol ID of the symbol to rename. Use 'resolve_symbol' to obtain this if needed.
+- `newName` (optional): The new name for the symbol. Must be a valid C# identifier and should not conflict with existing symbols in the same scope.

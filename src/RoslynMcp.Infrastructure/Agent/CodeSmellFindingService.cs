@@ -9,19 +9,13 @@ using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace RoslynMcp.Infrastructure.Agent;
 
-public sealed class CodeSmellFindingService : ICodeSmellFindingService
+public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAccessor, IRefactoringService refactoringService)
+    : ICodeSmellFindingService
 {
     private const int MaximumScannedAnchors = 500;
-    private readonly IRoslynSolutionAccessor _solutionAccessor;
-    private readonly IRefactoringService _refactoringService;
-    private readonly RoslynatorAnalyzerCatalog _analyzerCatalog;
-
-    public CodeSmellFindingService(IRoslynSolutionAccessor solutionAccessor, IRefactoringService refactoringService)
-    {
-        _solutionAccessor = solutionAccessor ?? throw new ArgumentNullException(nameof(solutionAccessor));
-        _refactoringService = refactoringService ?? throw new ArgumentNullException(nameof(refactoringService));
-        _analyzerCatalog = new RoslynatorAnalyzerCatalog();
-    }
+    private readonly IRoslynSolutionAccessor _solutionAccessor = solutionAccessor ?? throw new ArgumentNullException(nameof(solutionAccessor));
+    private readonly IRefactoringService _refactoringService = refactoringService ?? throw new ArgumentNullException(nameof(refactoringService));
+    private readonly RoslynatorAnalyzerCatalog _analyzerCatalog = new();
 
     public async Task<FindCodeSmellsResult> FindCodeSmellsAsync(FindCodeSmellsRequest request, CancellationToken ct)
     {

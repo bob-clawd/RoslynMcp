@@ -7,41 +7,26 @@ using Microsoft.CodeAnalysis;
 
 namespace RoslynMcp.Infrastructure.Agent;
 
-internal sealed class CodeUnderstandingQueryService
+internal sealed class CodeUnderstandingQueryService(
+    IRoslynSolutionAccessor solutionAccessor,
+    ISolutionSessionService solutionSessionService,
+    IWorkspaceBootstrapService workspaceBootstrapService,
+    ISymbolLookupService symbolLookupService,
+    INavigationService navigationService)
 {
-    private readonly IRoslynSolutionAccessor _solutionAccessor;
-    private readonly ISolutionSessionService _solutionSessionService;
-    private readonly IWorkspaceBootstrapService _workspaceBootstrapService;
-    private readonly ISymbolLookupService _symbolLookupService;
-    private readonly INavigationService _navigationService;
-
-    public CodeUnderstandingQueryService(
-        IRoslynSolutionAccessor solutionAccessor,
-        ISolutionSessionService solutionSessionService,
-        IWorkspaceBootstrapService workspaceBootstrapService,
-        ISymbolLookupService symbolLookupService,
-        INavigationService navigationService)
-    {
-        _solutionAccessor = solutionAccessor;
-        _solutionSessionService = solutionSessionService;
-        _workspaceBootstrapService = workspaceBootstrapService;
-        _symbolLookupService = symbolLookupService;
-        _navigationService = navigationService;
-    }
-
     public async Task<(Solution? Solution, ErrorInfo? Error)> GetCurrentSolutionWithAutoBootstrapAsync(
         string noSolutionNextAction,
         string? workspaceHintPath,
         CancellationToken ct)
     {
-        var (solution, error) = await _solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
+        var (solution, error) = await solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
         if (solution != null)
         {
             return (solution, null);
         }
 
         var discoveryRoot = workspaceHintPath.ResolveDiscoveryRoot();
-        var discovered = await _solutionSessionService
+        var discovered = await solutionSessionService
             .DiscoverSolutionsAsync(new DiscoverSolutionsRequest(discoveryRoot), ct)
             .ConfigureAwait(false);
 
@@ -50,7 +35,7 @@ internal sealed class CodeUnderstandingQueryService
             return (null, AgentErrorInfo.Normalize(error, noSolutionNextAction));
         }
 
-        var load = await _workspaceBootstrapService
+        var load = await workspaceBootstrapService
             .LoadSolutionAsync(new LoadSolutionRequest(discovered.SolutionPaths[0]), ct)
             .ConfigureAwait(false);
 
@@ -59,7 +44,7 @@ internal sealed class CodeUnderstandingQueryService
             return (null, AgentErrorInfo.Normalize(load.Error, noSolutionNextAction));
         }
 
-        var (autoLoadedSolution, autoLoadedError) = await _solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
+        var (autoLoadedSolution, autoLoadedError) = await solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
         if (autoLoadedSolution == null)
         {
             return (null, AgentErrorInfo.Normalize(autoLoadedError ?? error, noSolutionNextAction));
@@ -72,7 +57,7 @@ internal sealed class CodeUnderstandingQueryService
         string noSolutionNextAction,
         CancellationToken ct)
     {
-        var (solution, error) = await _solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
+        var (solution, error) = await solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
         if (solution != null)
         {
             return (solution, null);
@@ -101,7 +86,7 @@ internal sealed class CodeUnderstandingQueryService
             var lineCount = metric.LineCount ?? 0;
             var score = complexity + lineCount;
 
-            var symbol = await _symbolLookupService.ResolveSymbolAsync(metric.SymbolId, solution, ct).ConfigureAwait(false);
+            var symbol = await symbolLookupService.ResolveSymbolAsync(metric.SymbolId, solution, ct).ConfigureAwait(false);
             var displayName = symbol?.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) ?? metric.SymbolId;
             var (filePath, startLine, _, endLine, _) = symbol.GetSourceSpan();
             var reason = $"complexity={complexity}, lines={lineCount}";
@@ -139,13 +124,13 @@ internal sealed class CodeUnderstandingQueryService
     {
         if (!string.IsNullOrWhiteSpace(symbolId))
         {
-            var find = await _navigationService.FindSymbolAsync(new FindSymbolRequest(symbolId), ct).ConfigureAwait(false);
+            var find = await navigationService.FindSymbolAsync(new FindSymbolRequest(symbolId), ct).ConfigureAwait(false);
             return new GetSymbolAtPositionResult(find.Symbol, find.Error);
         }
 
         if (!string.IsNullOrWhiteSpace(path) && line.HasValue && column.HasValue)
         {
-            return await _navigationService.GetSymbolAtPositionAsync(
+            return await navigationService.GetSymbolAtPositionAsync(
                 new GetSymbolAtPositionRequest(path, line.Value, column.Value),
                 ct).ConfigureAwait(false);
         }
@@ -168,7 +153,7 @@ internal sealed class CodeUnderstandingQueryService
 
         if (hasExplicitTypeSymbolId)
         {
-            symbol = await _symbolLookupService.ResolveSymbolAsync(request.TypeSymbolId!, solution, ct).ConfigureAwait(false);
+            symbol = await symbolLookupService.ResolveSymbolAsync(request.TypeSymbolId!, solution, ct).ConfigureAwait(false);
             if (symbol == null)
             {
                 return (null,
@@ -198,7 +183,7 @@ internal sealed class CodeUnderstandingQueryService
 
         if (!string.IsNullOrWhiteSpace(request.Path) && request.Line.HasValue && request.Column.HasValue)
         {
-            symbol = await _symbolLookupService
+            symbol = await symbolLookupService
                 .GetSymbolAtPositionAsync(solution, request.Path!, request.Line.Value, request.Column.Value, ct)
                 .ConfigureAwait(false);
             if (symbol == null)

@@ -4,15 +4,8 @@ using RoslynMcp.Core.Models;
 
 namespace RoslynMcp.Infrastructure.Agent;
 
-public sealed class FlowTraceService : IFlowTraceService
+public sealed class FlowTraceService(INavigationService navigationService) : IFlowTraceService
 {
-    private readonly INavigationService _navigationService;
-
-    public FlowTraceService(INavigationService navigationService)
-    {
-        _navigationService = navigationService;
-    }
-
     public async Task<TraceFlowResult> TraceFlowAsync(TraceFlowRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -46,7 +39,7 @@ public sealed class FlowTraceService : IFlowTraceService
         IReadOnlyList<CallEdge> edges;
         if (string.Equals(direction, "upstream", StringComparison.Ordinal))
         {
-            var callers = await _navigationService.GetCallersAsync(new GetCallersRequest(root.Symbol.SymbolId, depth), ct).ConfigureAwait(false);
+            var callers = await navigationService.GetCallersAsync(new GetCallersRequest(root.Symbol.SymbolId, depth), ct).ConfigureAwait(false);
             if (callers.Error != null)
             {
                 return new TraceFlowResult(
@@ -62,7 +55,7 @@ public sealed class FlowTraceService : IFlowTraceService
         }
         else if (string.Equals(direction, "downstream", StringComparison.Ordinal))
         {
-            var callees = await _navigationService.GetCalleesAsync(new GetCalleesRequest(root.Symbol.SymbolId, depth), ct).ConfigureAwait(false);
+            var callees = await navigationService.GetCalleesAsync(new GetCalleesRequest(root.Symbol.SymbolId, depth), ct).ConfigureAwait(false);
             if (callees.Error != null)
             {
                 return new TraceFlowResult(
@@ -78,7 +71,7 @@ public sealed class FlowTraceService : IFlowTraceService
         }
         else
         {
-            var graph = await _navigationService.GetCallGraphAsync(new GetCallGraphRequest(root.Symbol.SymbolId, "both", depth), ct).ConfigureAwait(false);
+            var graph = await navigationService.GetCallGraphAsync(new GetCallGraphRequest(root.Symbol.SymbolId, "both", depth), ct).ConfigureAwait(false);
             if (graph.Error != null)
             {
                 return new TraceFlowResult(
@@ -108,12 +101,12 @@ public sealed class FlowTraceService : IFlowTraceService
     {
         if (!string.IsNullOrWhiteSpace(request.SymbolId))
         {
-            return await _navigationService.FindSymbolAsync(new FindSymbolRequest(request.SymbolId), ct).ConfigureAwait(false);
+            return await navigationService.FindSymbolAsync(new FindSymbolRequest(request.SymbolId), ct).ConfigureAwait(false);
         }
 
         if (!string.IsNullOrWhiteSpace(request.Path) && request.Line.HasValue && request.Column.HasValue)
         {
-            var atPosition = await _navigationService.GetSymbolAtPositionAsync(
+            var atPosition = await navigationService.GetSymbolAtPositionAsync(
                 new GetSymbolAtPositionRequest(request.Path, request.Line.Value, request.Column.Value),
                 ct).ConfigureAwait(false);
             return new FindSymbolResult(atPosition.Symbol, atPosition.Error);
