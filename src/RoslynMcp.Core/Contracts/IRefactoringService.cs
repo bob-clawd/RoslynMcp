@@ -4,6 +4,7 @@ namespace RoslynMcp.Core.Contracts;
 
 public interface IRefactoringService
 {
+    Task<FormatDocumentResult> FormatDocumentAsync(FormatDocumentRequest request, CancellationToken ct);
     Task<GetRefactoringsAtPositionResult> GetRefactoringsAtPositionAsync(GetRefactoringsAtPositionRequest request, CancellationToken ct);
     Task<PreviewRefactoringResult> PreviewRefactoringAsync(PreviewRefactoringRequest request, CancellationToken ct);
     Task<ApplyRefactoringResult> ApplyRefactoringAsync(ApplyRefactoringRequest request, CancellationToken ct);

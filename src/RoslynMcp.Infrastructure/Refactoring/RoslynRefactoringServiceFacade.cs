@@ -42,4 +42,7 @@ public sealed class RoslynRefactoringService : IRefactoringService
 
     public Task<RenameSymbolResult> RenameSymbolAsync(RenameSymbolRequest request, CancellationToken ct)
         => _orchestrator.RenameSymbolAsync(request, ct);
+
+    public Task<FormatDocumentResult> FormatDocumentAsync(FormatDocumentRequest request, CancellationToken ct)
+        => _orchestrator.FormatDocumentAsync(request, ct);
 }

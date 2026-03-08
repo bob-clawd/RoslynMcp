@@ -102,6 +102,11 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
     public Task<RenameSymbolResult> RenameSymbolAsync(RenameSymbolRequest request, CancellationToken ct)
         => _renameOperations.RenameSymbolAsync(request, ct);
 
+    public Task<FormatDocumentResult> FormatDocumentAsync(FormatDocumentRequest request, CancellationToken ct)
+    {
+        return FormatDocumentOperations.FormatDocumentAsync(this, request, ct);
+    }
+
     internal async Task<Solution> ApplyDiagnosticCleanupStepAsync(
         Solution solution,
         IReadOnlyList<Document> scopeDocuments,

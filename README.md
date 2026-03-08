@@ -72,9 +72,10 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 | **Get Type Hierarchy**   | Explore type inheritance and derived types                        |
 | **Find Code Smells**     | Detect potential issues in a file                                 |
 
-| Mutation Tool     | Description                                                       |
-|-------------------|-------------------------------------------------------------------|
-| **Rename Symbol** | Rename operation for types, methods, etc.                         |
+| Mutation Tool       | Description                                                       |
+|---------------------|-------------------------------------------------------------------|
+| **Format Document** | Format a C# source file according to solution style settings      |
+| **Rename Symbol**   | Rename operation for types, methods, etc.                         |
 
 
 
@@ -231,6 +232,14 @@ Parameters:
 - For automation, prefer `projectPath` over `projectName` and `projectId`. `projectPath` is the canonical stable project selector.
 - Treat `projectId` as workspace-snapshot-local metadata from the current `load_solution` result. Refresh it after reloads, or avoid it in durable automation.
 - For interactive exploration, `understand_codebase`, `list_types`, and `trace_call_flow` prioritize hand-written source and filter generated/intermediate artifacts such as `obj/`, `bin/`, `.g.cs`, and similar files by default.
+
+
+### `format_document`
+
+Use this tool when you need to format a C# source document according to the solution's code style settings. This applies consistent formatting (indentation, spacing, line breaks) to a specific file without requiring a full cleanup pass.
+
+Parameters:
+- `path` (required): Path to the C# source file to format. The file must exist in the currently loaded solution.
 
 
 ### `rename_symbol`

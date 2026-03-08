@@ -1,5 +1,12 @@
 namespace RoslynMcp.Core.Models;
 
+public sealed record FormatDocumentRequest(string Path);
+
+public sealed record FormatDocumentResult(
+    string FilePath,
+    bool WasFormatted,
+    ErrorInfo? Error = null);
+
 public sealed record RenameSymbolRequest(string SymbolId, string NewName);
 
 public sealed record RenameSymbolResult(
