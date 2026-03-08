@@ -53,11 +53,24 @@ internal static class FormatDocumentOperations
         {
             var formatted = await Formatter.FormatAsync(document, cancellationToken: ct).ConfigureAwait(false);
             var changed = formatted != document;
-            
-            return new FormatDocumentResult(
-                request.Path,
-                changed,
-                null);
+
+            if (!changed)
+            {
+                return new FormatDocumentResult(request.Path, false, null);
+            }
+
+            var updatedSolution = formatted.Project.Solution;
+            var (applied, applyError) = await orchestrator._solutionAccessor.TryApplySolutionAsync(updatedSolution, ct).ConfigureAwait(false);
+
+            if (!applied)
+            {
+                return new FormatDocumentResult(
+                    request.Path,
+                    false,
+                    applyError ?? new ErrorInfo(ErrorCodes.InternalError, "Failed to apply formatting changes to the workspace."));
+            }
+
+            return new FormatDocumentResult(request.Path, true, null);
         }
         catch (Exception)
         {
