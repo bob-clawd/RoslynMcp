@@ -1,6 +1,5 @@
 using Is.Assertions;
 using RoslynMcp.Core.Models;
-using RoslynMcp.Features.Tests.Inspections.Tools;
 
 namespace RoslynMcp.Features.Tests;
 
@@ -55,23 +54,6 @@ public static class AssertionsExtensions
         {
             references[i].FilePath.ShouldEndWithPathSuffix(expected[i].FileName);
             references[i].Line.Is(expected[i].Line);
-        }
-    }
-
-    internal static void ShouldMatchFindings(this IReadOnlyList<CodeSmellMatch> actual, ExpectedCodeSmellFinding[] expected)
-    {
-        actual.Count.Is(expected.Length);
-
-        for (var i = 0; i < expected.Length; i++)
-        {
-            var actualFinding = actual[i];
-            var expectedFinding = expected[i];
-
-            actualFinding.Location.Line.Is(expectedFinding.Line);
-            actualFinding.Location.Column.Is(expectedFinding.Column);
-            actualFinding.Title.Is(expectedFinding.Title);
-            actualFinding.Category.Is(expectedFinding.Category);
-            actualFinding.RiskLevel.Is(expectedFinding.RiskLevel);
         }
     }
 

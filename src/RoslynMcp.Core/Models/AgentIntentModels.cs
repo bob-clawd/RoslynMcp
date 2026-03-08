@@ -297,28 +297,37 @@ public static class CodeSmellReviewKinds
     public const string ReviewConcern = "review_concern";
 }
 
-public sealed record CodeSmellGroup(
-    string GroupId,
-    string Label,
-    SourceLocation PrimaryLocation,
-    int MatchCount,
-    string DominantCategory,
-    string DominantRiskLevel,
-    string ReviewKind,
-    IReadOnlyList<string> Titles);
+public sealed record CodeSmellsSummary(
+    int TotalFindings,
+    int TotalOccurrences,
+    int RiskBucketCount,
+    int CategoryBucketCount);
 
-public sealed record CodeSmellMatch(
-    string Title,
+public sealed record CodeSmellRiskBucket(
+    string RiskLevel,
+    int FindingCount,
+    int OccurrenceCount,
+    IReadOnlyList<CodeSmellCategoryBucket> Categories);
+
+public sealed record CodeSmellCategoryBucket(
     string Category,
-    SourceLocation Location,
+    int FindingCount,
+    int OccurrenceCount,
+    IReadOnlyList<CodeSmellFindingEntry> Findings);
+
+public sealed record CodeSmellFindingEntry(
+    string FindingKey,
+    string Title,
     string Origin,
     string RiskLevel,
-    string? ReviewKind = null,
-    string? GroupId = null);
+    string Category,
+    string ReviewKind,
+    int OccurrenceCount,
+    IReadOnlyList<SourceLocation> Occurrences);
 
 public sealed record FindCodeSmellsResult(
-    IReadOnlyList<CodeSmellMatch> Actions,
+    CodeSmellsSummary Summary,
+    IReadOnlyList<CodeSmellRiskBucket> RiskBuckets,
     IReadOnlyList<string> Warnings,
     ResultContextMetadata Context,
-    IReadOnlyList<CodeSmellGroup>? Groups = null,
     ErrorInfo? Error = null);
