@@ -86,12 +86,13 @@ public static class ToolContractMapperExtensions
                 NormalizeOptionalString(direction)?.ToLowerInvariant(),
                 NormalizeNonNegative(depth));
 
-        public FindCodeSmellsRequest ToFindCodeSmellsRequest(int? maxFindings, IReadOnlyList<string>? riskLevels, IReadOnlyList<string>? categories)
+        public FindCodeSmellsRequest ToFindCodeSmellsRequest(int? maxFindings, IReadOnlyList<string>? riskLevels, IReadOnlyList<string>? categories, string? reviewMode)
             => new(
                 NormalizeString(solutionHintPath),
                 maxFindings,
                 NormalizeOptionalStrings(riskLevels),
-                NormalizeOptionalStrings(categories));
+                NormalizeOptionalStrings(categories),
+                NormalizeOptionalString(reviewMode)?.ToLowerInvariant());
 
         public ListDependenciesRequest ToListDependenciesRequest(string? projectName,
             string? projectId,

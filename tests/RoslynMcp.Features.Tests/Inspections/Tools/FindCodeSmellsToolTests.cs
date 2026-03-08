@@ -30,6 +30,7 @@ public sealed class FindCodeSmellsToolTests(SharedSandboxFixture fixture, ITestO
         result.Context.ResultCompleteness.Is(ResultCompletenessStates.Complete);
         result.Groups.IsNotNull();
         result.Groups!.IsNotEmpty();
+        result.Warnings.Any(static warning => warning.Contains("reviewMode=conservative", StringComparison.Ordinal)).IsFalse();
     }
 
     [Fact]
@@ -50,6 +51,35 @@ public sealed class FindCodeSmellsToolTests(SharedSandboxFixture fixture, ITestO
         {
             result.Actions.Take(firstStyleIndex).Any(static action => action.ReviewKind == CodeSmellReviewKinds.ReviewConcern).IsTrue();
         }
+    }
+
+    [Fact]
+    public async Task FindCodeSmellsAsync_WithConservativeReviewMode_ReturnsLowerNoiseSubset()
+    {
+        var defaultResult = await Sut.ExecuteAsync(CancellationToken.None, CodeSmellsPath);
+        var conservativeResult = await Sut.ExecuteAsync(CancellationToken.None, CodeSmellsPath, reviewMode: CodeSmellReviewModes.Conservative);
+
+        defaultResult.Error.ShouldBeNone();
+        conservativeResult.Error.ShouldBeNone();
+        conservativeResult.Actions.Count.IsGreaterThan(0);
+        (conservativeResult.Actions.Count < defaultResult.Actions.Count).IsTrue();
+        conservativeResult.Actions.All(static action => action.ReviewKind != CodeSmellReviewKinds.StyleSuggestion).IsTrue();
+        conservativeResult.Warnings.Any(static warning => warning.Contains("reviewMode=conservative", StringComparison.Ordinal)).IsTrue();
+    }
+
+    [Fact]
+    public async Task FindCodeSmellsAsync_WithConservativeReviewModeAndAnalyzerFilter_RemainsSensible()
+    {
+        var result = await Sut.ExecuteAsync(
+            CancellationToken.None,
+            CodeSmellsPath,
+            categories: ["analyzer"],
+            reviewMode: CodeSmellReviewModes.Conservative);
+
+        result.Error.ShouldBeNone();
+        result.Actions.Count.IsGreaterThan(0);
+        result.Actions.All(static action => action.Category == "analyzer").IsTrue();
+        result.Actions.All(static action => action.ReviewKind == CodeSmellReviewKinds.CodeFixHint).IsTrue();
     }
 
     [Fact]
@@ -143,6 +173,14 @@ public sealed class FindCodeSmellsToolTests(SharedSandboxFixture fixture, ITestO
     public async Task FindCodeSmellsAsync_WithUnsupportedCategory_ReturnsValidationError()
     {
         var result = await Sut.ExecuteAsync(CancellationToken.None, CodeSmellsPath, categories: ["security"]);
+
+        result.Error.ShouldHaveCode(ErrorCodes.InvalidInput);
+    }
+
+    [Fact]
+    public async Task FindCodeSmellsAsync_WithUnsupportedReviewMode_ReturnsValidationError()
+    {
+        var result = await Sut.ExecuteAsync(CancellationToken.None, CodeSmellsPath, reviewMode: "aggressive");
 
         result.Error.ShouldHaveCode(ErrorCodes.InvalidInput);
     }

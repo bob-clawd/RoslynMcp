@@ -250,7 +250,14 @@ public sealed record FindCodeSmellsRequest(
     string Path,
     int? MaxFindings = null,
     IReadOnlyList<string>? RiskLevels = null,
-    IReadOnlyList<string>? Categories = null);
+    IReadOnlyList<string>? Categories = null,
+    string? ReviewMode = null);
+
+public static class CodeSmellReviewModes
+{
+    public const string Default = "default";
+    public const string Conservative = "conservative";
+}
 
 public static class CodeSmellReviewKinds
 {

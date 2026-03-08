@@ -16,6 +16,7 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
     private const int MaximumScannedAnchors = 500;
     private static readonly string[] SupportedRiskLevels = ["low", "review_required", "high", "info"];
     private static readonly string[] SupportedCategories = ["analyzer", "correctness", "design", "maintainability", "performance", "style"];
+    private static readonly string[] SupportedReviewModes = [CodeSmellReviewModes.Default, CodeSmellReviewModes.Conservative];
     private static readonly ResultContextMetadata UnknownContext = new(
         SourceBiases.Unknown,
         ResultCompletenessStates.Degraded,
@@ -151,13 +152,18 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
         }
 
         var deduped = DeduplicateMatches(actions, warnings);
-        var prioritized = PrioritizeMatches(deduped);
+        var prioritized = PrioritizeMatches(deduped, filters.ReviewMode);
         var (grouped, groupedMatches) = BuildGroups(prioritized);
         var limitedMatches = filters.ApplyLimit(groupedMatches);
         var limitedGroups = LimitGroups(grouped, limitedMatches);
         if (limitedMatches.Count == 0 && (filters.RiskLevels is not null || filters.Categories is not null))
         {
             warnings.Add("No findings matched the requested riskLevels/categories filters.");
+        }
+
+        if (string.Equals(filters.ReviewMode, CodeSmellReviewModes.Conservative, StringComparison.Ordinal))
+        {
+            warnings.Add("reviewMode=conservative suppresses lightweight style and trivia findings when stronger review concerns are available.");
         }
 
         return new FindCodeSmellsResult(limitedMatches, warnings, CreateContext(document.FilePath, warnings), limitedGroups);
@@ -374,7 +380,13 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
             return defaultError(categoryError);
         }
 
-        return (new FindCodeSmellFilters(path, request.MaxFindings, riskLevels, categories), null);
+        var (reviewMode, reviewModeError) = NormalizeReviewMode(request.ReviewMode);
+        if (reviewModeError is not null)
+        {
+            return defaultError(reviewModeError);
+        }
+
+        return (new FindCodeSmellFilters(path, request.MaxFindings, riskLevels, categories, reviewMode), null);
 
         static (FindCodeSmellFilters? Filters, FindCodeSmellsResult Error) defaultError(FindCodeSmellsResult error)
             => (default, error);
@@ -449,6 +461,26 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
         }
 
         return (normalized, null);
+    }
+
+    private static (string ReviewMode, FindCodeSmellsResult? Error) NormalizeReviewMode(string? reviewMode)
+    {
+        var normalized = NormalizePath(reviewMode);
+        if (normalized is null)
+        {
+            return (CodeSmellReviewModes.Default, null);
+        }
+
+        var canonical = normalized.ToLowerInvariant();
+        if (SupportedReviewModes.Contains(canonical, StringComparer.Ordinal))
+        {
+            return (canonical, null);
+        }
+
+        return (CodeSmellReviewModes.Default, CreateInvalidInputResult(
+            $"reviewMode must be drawn from: {string.Join(", ", SupportedReviewModes)}.",
+            ("field", "reviewMode"),
+            ("provided", normalized)));
     }
 
     private static string CreateAnchorDeduplicationKey(AnchorPosition anchor)
@@ -652,8 +684,10 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
         return deduped;
     }
 
-    private static IReadOnlyList<CodeSmellMatch> PrioritizeMatches(IReadOnlyList<CodeSmellMatch> matches)
-        => matches
+    private static IReadOnlyList<CodeSmellMatch> PrioritizeMatches(IReadOnlyList<CodeSmellMatch> matches, string reviewMode)
+    {
+        var ranked = matches
+            .Where(match => ShouldIncludeInReviewMode(match, matches, reviewMode))
             .OrderBy(GetReviewKindPriority)
             .ThenByDescending(GetRiskPriority)
             .ThenBy(GetCategoryPriority)
@@ -662,6 +696,17 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
             .ThenBy(static match => match.Location.Column)
             .ThenBy(static match => match.Title, StringComparer.Ordinal)
             .ToArray();
+
+        return ranked.Length > 0 ? ranked : matches
+            .OrderBy(GetReviewKindPriority)
+            .ThenByDescending(GetRiskPriority)
+            .ThenBy(GetCategoryPriority)
+            .ThenBy(static match => match.Location.FilePath, StringComparer.Ordinal)
+            .ThenBy(static match => match.Location.Line)
+            .ThenBy(static match => match.Location.Column)
+            .ThenBy(static match => match.Title, StringComparer.Ordinal)
+            .ToArray();
+    }
 
     private static (IReadOnlyList<CodeSmellGroup> Groups, IReadOnlyList<CodeSmellMatch> Matches) BuildGroups(IReadOnlyList<CodeSmellMatch> matches)
     {
@@ -807,6 +852,38 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
             : CodeSmellReviewKinds.CodeFixHint;
     }
 
+    private static bool ShouldIncludeInReviewMode(CodeSmellMatch candidate, IReadOnlyList<CodeSmellMatch> allMatches, string reviewMode)
+    {
+        if (!string.Equals(reviewMode, CodeSmellReviewModes.Conservative, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (candidate.ReviewKind == CodeSmellReviewKinds.ReviewConcern)
+        {
+            return true;
+        }
+
+        if (candidate.RiskLevel == "high" || candidate.RiskLevel == "review_required")
+        {
+            return true;
+        }
+
+        var hasStrongerSignals = allMatches.Any(static match =>
+            match.ReviewKind == CodeSmellReviewKinds.ReviewConcern
+            || match.RiskLevel is "high" or "review_required");
+
+        if (!hasStrongerSignals)
+        {
+            return candidate.ReviewKind != CodeSmellReviewKinds.StyleSuggestion;
+        }
+
+        return candidate.ReviewKind == CodeSmellReviewKinds.CodeFixHint
+               && candidate.Category != "style"
+               && candidate.Origin != "roslynator_diagnostic"
+               && candidate.RiskLevel != "info";
+    }
+
     private static int GetReviewKindPriority(CodeSmellMatch match)
         => GetReviewKindPriority(match.ReviewKind);
 
@@ -896,7 +973,8 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
         string Path,
         int? MaxFindings,
         HashSet<string>? RiskLevels,
-        HashSet<string>? Categories)
+        HashSet<string>? Categories,
+        string ReviewMode)
     {
         public bool Accepts(CodeSmellMatch match)
         {
