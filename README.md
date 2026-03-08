@@ -226,6 +226,14 @@ Parameters:
 - `riskLevels` (optional): Accepted risk levels to include. Public result values are `low`, `review_required`, `high`, and `info`.
 - `categories` (optional): Accepted categories to include. Empty or omitted means all categories are included.
 
+
+### `format_document`
+
+Use this tool when you need to format exactly one C# source file in the loaded solution using the active solution formatting and style settings. It reports whether formatting produced a persisted content change.
+
+Parameters:
+- `path` (required): Path to the C# source file to format. The file must belong to the currently loaded solution.
+
 ## Usage Notes
 
 - For automation, prefer `projectPath` over `projectName` and `projectId`. `projectPath` is the canonical stable project selector.

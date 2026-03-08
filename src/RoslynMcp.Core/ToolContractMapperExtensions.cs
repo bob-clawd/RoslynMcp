@@ -114,6 +114,9 @@ public static class ToolContractMapperExtensions
         public RenameSymbolRequest ToRenameSymbolRequest(string? newName)
             => new(NormalizeOptionalString(solutionHintPath),
                 NormalizeOptionalString(newName));
+
+        public FormatDocumentRequest ToFormatDocumentRequest()
+            => new(NormalizeOptionalString(solutionHintPath) ?? string.Empty);
     }
 
     private static int NormalizePosition(int value)

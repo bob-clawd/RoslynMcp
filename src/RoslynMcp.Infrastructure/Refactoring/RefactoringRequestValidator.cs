@@ -5,6 +5,22 @@ namespace RoslynMcp.Infrastructure.Refactoring;
 
 internal static class RefactoringRequestExtensions
 {
+    public static FormatDocumentResult? ValidateFormatDocument(this FormatDocumentRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Path))
+        {
+            return new FormatDocumentResult(
+                string.Empty,
+                false,
+                CreateError(ErrorCodes.InvalidInput,
+                    "path must be a non-empty, non-whitespace string.",
+                    ("parameter", "path"),
+                    ("operation", "format_document")));
+        }
+
+        return null;
+    }
+
     public static GetRefactoringsAtPositionResult? ValidateGetRefactoringsAtPosition(this GetRefactoringsAtPositionRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Path) || request.Line < 1 || request.Column < 1)

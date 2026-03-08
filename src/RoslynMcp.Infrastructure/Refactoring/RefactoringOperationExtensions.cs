@@ -600,6 +600,15 @@ internal static class RefactoringOperationExtensions
         return new RenameSymbolResult(null, 0, Array.Empty<SourceLocation>(), Array.Empty<string>(), safeError);
     }
 
+    public static FormatDocumentResult CreateFormatDocumentErrorResult(string path, string code, string message, params (string Key, string? Value)[] details)
+        => new(path, false, CreateError(code, message, details));
+
+    public static FormatDocumentResult CreateFormatDocumentErrorResult(string path, ErrorInfo? error)
+    {
+        var safeError = error ?? new ErrorInfo(Core.ErrorCodes.InternalError, "An unknown error occurred while formatting the document.");
+        return new FormatDocumentResult(path, false, safeError);
+    }
+
     public static ErrorInfo? TryCreateInvalidSymbolIdError(string symbolId, string operation)
     {
         if (!string.IsNullOrWhiteSpace(symbolId))

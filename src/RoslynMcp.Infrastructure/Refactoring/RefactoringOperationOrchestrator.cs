@@ -61,6 +61,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
     private readonly CodeFixOperations _codeFixOperations;
     private readonly CleanupOperations _cleanupOperations;
     private readonly RenameOperations _renameOperations;
+    private readonly DocumentFormattingOperations _formatDocumentOperations;
 
     public RefactoringOperationOrchestrator(IRoslynSolutionAccessor solutionAccessor,
         ILogger<RoslynRefactoringService>? logger = null)
@@ -74,6 +75,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
         _codeFixOperations = new CodeFixOperations(this);
         _cleanupOperations = new CleanupOperations(this);
         _renameOperations = new RenameOperations(this);
+        _formatDocumentOperations = new DocumentFormattingOperations(this);
     }
 
     public Task<GetRefactoringsAtPositionResult> GetRefactoringsAtPositionAsync(
@@ -101,6 +103,9 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
 
     public Task<RenameSymbolResult> RenameSymbolAsync(RenameSymbolRequest request, CancellationToken ct)
         => _renameOperations.RenameSymbolAsync(request, ct);
+
+    public Task<FormatDocumentResult> FormatDocumentAsync(FormatDocumentRequest request, CancellationToken ct)
+        => _formatDocumentOperations.FormatDocumentAsync(request, ct);
 
     internal async Task<Solution> ApplyDiagnosticCleanupStepAsync(
         Solution solution,

@@ -808,3 +808,135 @@ internal sealed class RenameOperations
         }
     }
 }
+
+internal sealed class DocumentFormattingOperations
+{
+    private readonly RefactoringOperationOrchestrator _owner;
+
+    public DocumentFormattingOperations(RefactoringOperationOrchestrator owner)
+    {
+        _owner = owner;
+    }
+
+    public async Task<FormatDocumentResult> FormatDocumentAsync(FormatDocumentRequest request, CancellationToken ct)
+        => await FormatDocumentAsync(request, ct, allowReloadFallback: true).ConfigureAwait(false);
+
+    private async Task<FormatDocumentResult> FormatDocumentAsync(FormatDocumentRequest request, CancellationToken ct, bool allowReloadFallback)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ct.ThrowIfCancellationRequested();
+
+        var validationError = request.ValidateFormatDocument();
+        if (validationError != null)
+        {
+            return validationError;
+        }
+
+        try
+        {
+            var requestedPath = request.Path.Trim();
+            var (solution, version, error) = await _owner.TryGetSolutionWithVersionAsync(ct).ConfigureAwait(false);
+            if (solution == null)
+            {
+                return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(requestedPath, error);
+            }
+
+            var document = solution.FindDocument(requestedPath);
+            if (document == null)
+            {
+                return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(
+                    requestedPath,
+                    ErrorCodes.PathOutOfScope,
+                    "The provided path does not match a document in the selected solution scope.",
+                    ("path", requestedPath),
+                    ("operation", "format_document"));
+            }
+
+            var health = new[] { document }.EvaluateWorkspaceFilesystemHealth();
+            if (!health.IsConsistent)
+            {
+                if (allowReloadFallback && _owner._solutionAccessor is ISolutionSessionService sessionService)
+                {
+                    var reload = await sessionService.ReloadSolutionAsync(new ReloadSolutionRequest(), ct).ConfigureAwait(false);
+                    if (reload.Success)
+                    {
+                        return await FormatDocumentAsync(request, ct, allowReloadFallback: false).ConfigureAwait(false);
+                    }
+
+                    return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(
+                        requestedPath,
+                        ErrorCodes.StaleWorkspaceSnapshot,
+                        RefactoringOperationOrchestrator.CleanupStaleWorkspaceMessage,
+                        ("operation", "format_document"),
+                        (RefactoringOperationOrchestrator.CleanupHealthCheckPerformedDetail, bool.TrueString.ToLowerInvariant()),
+                        (RefactoringOperationOrchestrator.CleanupAutoReloadAttemptedDetail, bool.TrueString.ToLowerInvariant()),
+                        (RefactoringOperationOrchestrator.CleanupAutoReloadSucceededDetail, bool.FalseString.ToLowerInvariant()),
+                        (RefactoringOperationOrchestrator.CleanupMissingFileCountDetail, health.MissingRootedFiles.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                        (RefactoringOperationOrchestrator.CleanupReloadErrorCodeDetail, reload.Error?.Code));
+                }
+
+                return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(
+                    requestedPath,
+                    ErrorCodes.StaleWorkspaceSnapshot,
+                    RefactoringOperationOrchestrator.CleanupStaleWorkspaceMessage,
+                    ("operation", "format_document"),
+                    (RefactoringOperationOrchestrator.CleanupHealthCheckPerformedDetail, bool.TrueString.ToLowerInvariant()),
+                    (RefactoringOperationOrchestrator.CleanupAutoReloadAttemptedDetail, bool.FalseString.ToLowerInvariant()),
+                    (RefactoringOperationOrchestrator.CleanupAutoReloadSucceededDetail, bool.FalseString.ToLowerInvariant()),
+                    (RefactoringOperationOrchestrator.CleanupMissingFileCountDetail, health.MissingRootedFiles.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            }
+
+            var updated = await _owner.FormatScopeAsync(solution, [document], ct).ConfigureAwait(false);
+            var changedFiles = await solution.CollectChangedFilesAsync(updated, ct).ConfigureAwait(false);
+            var documentPath = document.FilePath ?? document.Name;
+            if (changedFiles.Count == 0)
+            {
+                return new FormatDocumentResult(documentPath, false);
+            }
+
+            var (applyVersion, versionError) = await _owner._solutionAccessor.GetWorkspaceVersionAsync(ct).ConfigureAwait(false);
+            if (versionError != null)
+            {
+                return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(documentPath, versionError);
+            }
+
+            if (applyVersion != version)
+            {
+                return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(
+                    documentPath,
+                    ErrorCodes.WorkspaceChanged,
+                    "Workspace changed during format_document execution.",
+                    ("path", documentPath),
+                    ("operation", "format_document"));
+            }
+
+            var (applied, applyError) = await _owner._solutionAccessor.TryApplySolutionAsync(updated, ct).ConfigureAwait(false);
+            if (!applied)
+            {
+                return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(
+                    documentPath,
+                    applyError ?? RefactoringOperationExtensions.CreateError(
+                        ErrorCodes.InternalError,
+                        "Failed to apply formatted document changes.",
+                        ("path", documentPath),
+                        ("operation", "format_document")));
+            }
+
+            return new FormatDocumentResult(documentPath, true);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _owner._logger.LogError(ex, "FormatDocument failed for {Path}", request.Path);
+            return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(
+                request.Path,
+                ErrorCodes.InternalError,
+                $"Failed to format document '{request.Path}': {ex.Message}",
+                ("path", request.Path),
+                ("operation", "format_document"));
+        }
+    }
+}

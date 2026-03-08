@@ -9,6 +9,13 @@ public sealed record RenameSymbolResult(
     IReadOnlyList<string> ChangedFiles,
     ErrorInfo? Error = null);
 
+public sealed record FormatDocumentRequest(string Path);
+
+public sealed record FormatDocumentResult(
+    string Path,
+    bool WasFormatted,
+    ErrorInfo? Error = null);
+
 public sealed record GetCodeFixesRequest(
     string Scope,
     string? Path = null,
