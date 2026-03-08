@@ -116,18 +116,20 @@ public static partial class CodeUnderstandingExtensions
         }
 
         var (filePath, line, column) = member.GetDeclarationPosition();
+        var reference = member.ToSymbolReference();
         return new MemberListEntry(
             member.Kind == SymbolKind.Method && member is IMethodSymbol { MethodKind: MethodKind.Constructor } constructor
                 ? constructor.ContainingType.Name
                 : member.Name,
-            SymbolIdentity.CreateId(member),
+            reference.SymbolId,
             memberKind,
             member.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.MinimallyQualifiedFormat),
             filePath,
             line,
             column,
             accessibility,
-            member.IsStatic);
+            member.IsStatic,
+            reference);
     }
 
     public static string? ToTypeKind(this INamedTypeSymbol type)
@@ -299,6 +301,9 @@ public static partial class CodeUnderstandingExtensions
         return names;
     }
 
+    public static string ToReadableHandle(this ISymbol symbol)
+        => $"{symbol.GetReadableHandlePrefix()}:{symbol.ToQualifiedDisplayName()}";
+
     public static string ToQualifiedDisplayName(this ISymbol symbol)
     {
         if (symbol is INamedTypeSymbol namedType)
@@ -364,6 +369,25 @@ public static partial class CodeUnderstandingExtensions
         return $"{type.Name}<{string.Join(", ", typeParameters)}>";
     }
 
+    public static SymbolReference ToSymbolReference(this ISymbol symbol)
+    {
+        var (filePath, line, column) = symbol.GetDeclarationPosition();
+        return new SymbolReference(
+            SymbolIdentity.CreateId(symbol),
+            symbol.ToReadableHandle(),
+            symbol.ToQualifiedDisplayName(),
+            CreateOptionalSourceLocation(filePath, line, column));
+    }
+
+    public static SymbolReference CreateSymbolReference(
+        string symbolId,
+        string handle,
+        string qualifiedDisplayName,
+        string filePath,
+        int? line,
+        int? column)
+        => new(symbolId, handle, qualifiedDisplayName, CreateOptionalSourceLocation(filePath, line, column));
+
     private static SymbolDisplayFormat CreateReadableTypeFormat(bool includeNamespaces)
         => new(
             globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
@@ -373,17 +397,36 @@ public static partial class CodeUnderstandingExtensions
             genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters,
             miscellaneousOptions: SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
 
+    private static string GetReadableHandlePrefix(this ISymbol symbol)
+        => symbol switch
+        {
+            INamedTypeSymbol => "type",
+            IMethodSymbol { MethodKind: MethodKind.Constructor } => "ctor",
+            IMethodSymbol => "method",
+            IPropertySymbol => "property",
+            IFieldSymbol => "field",
+            IEventSymbol => "event",
+            _ => symbol.Kind.ToString().ToLowerInvariant()
+        };
+
+    private static SourceLocation? CreateOptionalSourceLocation(string filePath, int? line, int? column)
+        => string.IsNullOrWhiteSpace(filePath) || !line.HasValue || !column.HasValue
+            ? null
+            : new SourceLocation(filePath, line.Value, column.Value);
+
     public static ResolvedSymbolSummary ToResolvedSymbol(this ISymbol symbol)
     {
         var (filePath, line, column) = symbol.GetDeclarationPosition();
+        var reference = symbol.ToSymbolReference();
         return new ResolvedSymbolSummary(
-            SymbolIdentity.CreateId(symbol),
+            reference.SymbolId,
             symbol.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.MinimallyQualifiedFormat),
             symbol.Kind.ToString(),
             filePath,
             line,
             column,
-            symbol.ToQualifiedDisplayName());
+            reference.QualifiedDisplayName,
+            reference);
     }
 
     public static DiagnosticsSummary ToDiagnosticsSummary(this IReadOnlyList<DiagnosticItem> diagnostics)

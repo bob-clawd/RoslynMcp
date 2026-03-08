@@ -1,5 +1,6 @@
 using RoslynMcp.Core.Models;
 using Microsoft.CodeAnalysis;
+using RoslynMcp.Infrastructure.Agent;
 
 namespace RoslynMcp.Infrastructure.Navigation;
 
@@ -7,16 +8,17 @@ internal static class NavigationModelExtensions
 {
     public static SymbolDescriptor ToSymbolDescriptor(this ISymbol symbol)
     {
-        var descriptorId = SymbolIdentity.CreateId(symbol);
         var location = symbol.Locations.FirstOrDefault(static l => l.IsInSource);
         var sourceLocation = location != null ? location.ToSourceLocation() : new SourceLocation(string.Empty, 1, 1);
+        var reference = symbol.ToSymbolReference();
         return new SymbolDescriptor(
-            descriptorId,
+            reference.SymbolId,
             symbol.Name,
             symbol.Kind.ToString(),
             symbol.ContainingType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             symbol.ContainingNamespace?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            sourceLocation);
+            sourceLocation,
+            reference);
     }
 
     public static SourceLocation ToSourceLocation(this Location location)

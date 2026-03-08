@@ -2,6 +2,12 @@ namespace RoslynMcp.Core.Models;
 
 public sealed record SourceLocation(string FilePath, int Line, int Column);
 
+public sealed record SymbolReference(
+    string SymbolId,
+    string Handle,
+    string QualifiedDisplayName,
+    SourceLocation? DeclarationLocation = null);
+
 public sealed record ErrorInfo(string Code, string Message, IReadOnlyDictionary<string, string>? Details = null);
 
 public sealed record DiscoverSolutionsRequest(string WorkspaceRoot);

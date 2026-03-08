@@ -295,17 +295,18 @@ public static partial class CodeUnderstandingExtensions
             .ThenBy(match => SymbolIdentity.CreateId(match.Symbol), StringComparer.Ordinal)
             .Select(match =>
             {
-                var symbolId = SymbolIdentity.CreateId(match.Symbol);
+                var reference = match.Symbol.ToSymbolReference();
                 var (filePath, line, column) = match.Symbol.GetDeclarationPosition();
                 return new ResolveSymbolCandidate(
-                    symbolId,
+                    reference.SymbolId,
                     match.Symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                     match.Symbol.Kind.ToString(),
                     filePath,
                     line,
                     column,
                     match.ProjectName,
-                    match.Symbol.ToQualifiedDisplayName());
+                    reference.QualifiedDisplayName,
+                    reference);
             })
             .ToArray();
     }

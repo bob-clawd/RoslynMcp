@@ -107,7 +107,8 @@ public sealed record TypeListEntry(
     int? Column,
     string Kind,
     bool IsPartial,
-    int? Arity);
+    int? Arity,
+    SymbolReference? Reference = null);
 
 public sealed record ListTypesResult(
     IReadOnlyList<TypeListEntry> Types,
@@ -136,7 +137,8 @@ public sealed record MemberListEntry(
     int? Line,
     int? Column,
     string Accessibility,
-    bool IsStatic);
+    bool IsStatic,
+    SymbolReference? Reference = null);
 
 public sealed record ListMembersResult(
     IReadOnlyList<MemberListEntry> Members,
@@ -161,7 +163,8 @@ public sealed record ResolvedSymbolSummary(
     string FilePath,
     int? Line,
     int? Column,
-    string? QualifiedDisplayName = null);
+    string? QualifiedDisplayName = null,
+    SymbolReference? Reference = null);
 
 public sealed record ResolveSymbolCandidate(
     string SymbolId,
@@ -171,7 +174,8 @@ public sealed record ResolveSymbolCandidate(
     int? Line,
     int? Column,
     string ProjectName,
-    string? QualifiedDisplayName = null);
+    string? QualifiedDisplayName = null,
+    SymbolReference? Reference = null);
 
 public sealed record ResolveSymbolResult(
     ResolvedSymbolSummary? Symbol,

@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using RoslynMcp.Infrastructure.Agent;
 
 namespace RoslynMcp.Infrastructure.Navigation;
 
@@ -91,7 +92,7 @@ internal sealed class CallGraphService : ICallGraphService
                         }
 
                         var source = location.ToSourceLocation();
-                        var edge = new CallEdge(callerId, toId, source);
+                        var edge = new CallEdge(callerId, toId, source, normalizedCaller.ToSymbolReference(), normalizedCalled.ToSymbolReference());
                         if (edgeKeys.Add(edge.GetEdgeKey()))
                         {
                             edges.Add(edge);
@@ -110,9 +111,10 @@ internal sealed class CallGraphService : ICallGraphService
                 foreach (var (callee, location) in callees)
                 {
                     var normalizedCallee = callee.OriginalDefinition ?? callee;
-                    var fromId = SymbolIdentity.CreateId(current.OriginalDefinition ?? current);
+                    var normalizedCurrent = current.OriginalDefinition ?? current;
+                    var fromId = SymbolIdentity.CreateId(normalizedCurrent);
                     var toId = SymbolIdentity.CreateId(normalizedCallee);
-                    var edge = new CallEdge(fromId, toId, location.ToSourceLocation());
+                    var edge = new CallEdge(fromId, toId, location.ToSourceLocation(), normalizedCurrent.ToSymbolReference(), normalizedCallee.ToSymbolReference());
                     if (edgeKeys.Add(edge.GetEdgeKey()))
                     {
                         edges.Add(edge);

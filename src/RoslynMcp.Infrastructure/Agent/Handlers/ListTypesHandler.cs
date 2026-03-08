@@ -138,15 +138,17 @@ internal sealed class ListTypesHandler
                 }
 
                 var (filePath, line, column) = type.GetDeclarationPosition();
+                var reference = type.ToSymbolReference();
                 var entry = new TypeListEntry(
                     type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-                    SymbolIdentity.CreateId(type),
+                    reference.SymbolId,
                     filePath,
                     line,
                     column,
                     kind,
                     type.IsPartial(),
-                    type.Arity > 0 ? type.Arity : null);
+                    type.Arity > 0 ? type.Arity : null,
+                    reference);
 
                 if (!SourceVisibility.ShouldIncludeInHumanResults(filePath))
                 {

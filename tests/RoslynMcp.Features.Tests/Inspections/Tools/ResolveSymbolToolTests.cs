@@ -28,6 +28,17 @@ public sealed class ResolveSymbolToolTests(SharedSandboxFixture fixture, ITestOu
             .IsTrue();
     }
 
+    private static void ShouldMatchReference(SymbolReference? reference, string expectedHandle, string expectedQualifiedDisplayName, string expectedFileName, int expectedLine)
+    {
+        reference.IsNotNull();
+        reference!.Handle.Is(expectedHandle);
+        reference.QualifiedDisplayName.Is(expectedQualifiedDisplayName);
+        reference.DeclarationLocation.IsNotNull();
+        reference.DeclarationLocation!.FilePath.ShouldEndWithPathSuffix(expectedFileName);
+        reference.DeclarationLocation.Line.Is(expectedLine);
+        reference.SymbolId.ShouldNotBeEmpty();
+    }
+
     [Fact]
     public async Task ResolveSymbolAsync_WithQualifiedName_ReturnsResolvedTypeSymbol()
     {
@@ -49,6 +60,12 @@ public sealed class ResolveSymbolToolTests(SharedSandboxFixture fixture, ITestOu
         result.Candidates.IsEmpty();
         ShouldMatchResolvedSymbol(result.Symbol, "AppOrchestrator", "NamedType", Path.Combine("ProjectApp", "AppOrchestrator.cs"));
         result.Symbol!.QualifiedDisplayName.Is("ProjectApp.AppOrchestrator");
+        ShouldMatchReference(
+            result.Symbol.Reference,
+            "type:ProjectApp.AppOrchestrator",
+            "ProjectApp.AppOrchestrator",
+            Path.Combine("ProjectApp", "AppOrchestrator.cs"),
+            6);
     }
 
     [Fact]
@@ -127,6 +144,11 @@ public sealed class ResolveSymbolToolTests(SharedSandboxFixture fixture, ITestOu
         ShouldMatchResolvedSymbol(roundtrip.Symbol, "AppOrchestrator", "NamedType", Path.Combine("ProjectApp", "AppOrchestrator.cs"));
         roundtrip.Symbol!.SymbolId.Is(initial.Symbol.SymbolId);
         roundtrip.Symbol.FilePath.Is(initial.Symbol.FilePath);
+        roundtrip.Symbol.Reference.IsNotNull();
+        initial.Symbol.Reference.IsNotNull();
+        roundtrip.Symbol.Reference!.SymbolId.Is(initial.Symbol.Reference!.SymbolId);
+        roundtrip.Symbol.Reference.Handle.Is(initial.Symbol.Reference.Handle);
+        roundtrip.Symbol.Reference.QualifiedDisplayName.Is(initial.Symbol.Reference.QualifiedDisplayName);
     }
 
     [Fact]
@@ -207,6 +229,10 @@ public sealed class ResolveSymbolToolTests(SharedSandboxFixture fixture, ITestOu
         ShouldContainCandidate(result.Candidates, "ProjectImpl.FastWorkItemOperation.ExecuteAsync(WorkItem, CancellationToken)", "ProjectImpl");
         ShouldContainCandidate(result.Candidates, "ProjectImpl.FastWorkItemOperation.ExecuteAsync(Guid, string, CancellationToken)", "ProjectImpl");
         ShouldContainCandidate(result.Candidates, "ProjectImpl.FastWorkItemOperation.ExecuteAsync(Guid, string, int, CancellationToken)", "ProjectImpl");
+        result.Candidates.All(static candidate => candidate.Reference is not null).IsTrue();
+        result.Candidates.Any(static candidate => candidate.Reference!.Handle == "method:ProjectImpl.FastWorkItemOperation.ExecuteAsync(Guid, string, CancellationToken)").IsTrue();
+        result.Candidates.Any(static candidate => candidate.Reference!.Handle == "method:ProjectImpl.FastWorkItemOperation.ExecuteAsync(Guid, string, int, CancellationToken)").IsTrue();
+        result.Candidates.Any(static candidate => candidate.Reference!.Handle == "method:ProjectImpl.FastWorkItemOperation.ExecuteAsync(WorkItem, CancellationToken)").IsTrue();
     }
 
     [Fact]

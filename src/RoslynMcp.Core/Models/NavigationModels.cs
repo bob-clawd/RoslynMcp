@@ -6,7 +6,8 @@ public sealed record SymbolDescriptor(
     string Kind,
     string? ContainingType,
     string? ContainingNamespace,
-    SourceLocation DeclarationLocation);
+    SourceLocation DeclarationLocation,
+    SymbolReference? Reference = null);
 
 public sealed record FindSymbolRequest(string SymbolId);
 
@@ -92,7 +93,12 @@ public sealed record GetCallersRequest(string SymbolId, int? MaxDepth = null);
 
 public sealed record GetCalleesRequest(string SymbolId, int? MaxDepth = null);
 
-public sealed record CallEdge(string FromSymbolId, string ToSymbolId, SourceLocation Location);
+public sealed record CallEdge(
+    string FromSymbolId,
+    string ToSymbolId,
+    SourceLocation Location,
+    SymbolReference? FromReference = null,
+    SymbolReference? ToReference = null);
 
 public sealed record GetCallGraphRequest(string SymbolId, string Direction, int? MaxDepth = null);
 

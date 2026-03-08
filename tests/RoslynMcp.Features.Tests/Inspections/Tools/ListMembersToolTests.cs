@@ -118,6 +118,35 @@ public sealed class ListMembersToolTests(SharedSandboxFixture fixture, ITestOutp
     }
 
     [Fact]
+    public async Task ListMembersAsync_ExposesReadableReference_ConsistentWithResolveSymbol()
+    {
+        var appOrchestratorSymbolId = await GetTypeSymbolIdAsync("ProjectApp", "AppOrchestrator");
+        var resolver = Context.GetRequiredService<ResolveSymbolTool>();
+
+        var resolved = await resolver.ExecuteAsync(
+            CancellationToken.None,
+            qualifiedName: "ProjectApp.AppOrchestrator.RunReflectionPathAsync(CancellationToken)",
+            projectName: "ProjectApp");
+
+        resolved.Error.ShouldBeNone();
+        resolved.Symbol.IsNotNull();
+        resolved.Symbol!.Reference.IsNotNull();
+
+        var members = await Sut.ExecuteAsync(CancellationToken.None, typeSymbolId: appOrchestratorSymbolId, kind: "method");
+
+        members.Error.ShouldBeNone();
+
+        var listed = members.Members.Single(member => member.DisplayName == "RunReflectionPathAsync");
+        listed.Reference.IsNotNull();
+        listed.Reference!.SymbolId.Is(resolved.Symbol.Reference!.SymbolId);
+        listed.Reference.Handle.Is(resolved.Symbol.Reference.Handle);
+        listed.Reference.QualifiedDisplayName.Is(resolved.Symbol.Reference.QualifiedDisplayName);
+        listed.Reference.DeclarationLocation.IsNotNull();
+        listed.Reference.DeclarationLocation!.FilePath.ShouldEndWithPathSuffix(Path.Combine("ProjectApp", "AppOrchestrator.cs"));
+        listed.Reference.DeclarationLocation.Line.Is(34);
+    }
+
+    [Fact]
     public async Task ListMembersAsync_WithLimitAndOffset_ReturnsDeterministicPage()
     {
         var appOrchestratorSymbolId = await GetTypeSymbolIdAsync("ProjectApp", "AppOrchestrator");
@@ -185,6 +214,8 @@ public sealed class ListMembersToolTests(SharedSandboxFixture fixture, ITestOutp
             actual[i].FilePath.ShouldEndWithPathSuffix(expected[i].FileName);
             actual[i].Line.Is(expected[i].Line);
             actual[i].SymbolId.ShouldNotBeEmpty();
+            actual[i].Reference.IsNotNull();
+            actual[i].Reference!.SymbolId.Is(actual[i].SymbolId);
         }
     }
 }

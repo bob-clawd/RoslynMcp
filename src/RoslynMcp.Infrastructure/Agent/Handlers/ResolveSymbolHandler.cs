@@ -125,7 +125,7 @@ internal sealed class ResolveSymbolHandler
 
             var selected = candidates[0];
             return new ResolveSymbolResult(
-                new ResolvedSymbolSummary(selected.SymbolId, selected.DisplayName, selected.Kind, selected.FilePath, selected.Line, selected.Column, selected.QualifiedDisplayName),
+                new ResolvedSymbolSummary(selected.SymbolId, selected.DisplayName, selected.Kind, selected.FilePath, selected.Line, selected.Column, selected.QualifiedDisplayName, selected.Reference),
                 false,
                 Array.Empty<ResolveSymbolCandidate>());
         }
