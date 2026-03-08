@@ -72,6 +72,10 @@ internal static class FormatDocumentOperations
 
             return new FormatDocumentResult(request.Path, true, null);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception)
         {
             return new FormatDocumentResult(
