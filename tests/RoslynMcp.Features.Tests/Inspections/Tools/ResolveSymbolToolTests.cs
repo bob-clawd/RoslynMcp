@@ -20,6 +20,14 @@ public sealed class ResolveSymbolToolTests(SharedSandboxFixture fixture, ITestOu
         symbol.SymbolId.ShouldNotBeEmpty();
     }
 
+    private static void ShouldContainCandidate(IReadOnlyList<ResolveSymbolCandidate> candidates, string expectedQualifiedDisplayName, string expectedProjectName)
+    {
+        candidates.Any(candidate =>
+                string.Equals(candidate.QualifiedDisplayName, expectedQualifiedDisplayName, StringComparison.Ordinal)
+                && string.Equals(candidate.ProjectName, expectedProjectName, StringComparison.Ordinal))
+            .IsTrue();
+    }
+
     [Fact]
     public async Task ResolveSymbolAsync_WithQualifiedName_ReturnsResolvedTypeSymbol()
     {
@@ -40,6 +48,34 @@ public sealed class ResolveSymbolToolTests(SharedSandboxFixture fixture, ITestOu
         result.IsAmbiguous.IsFalse();
         result.Candidates.IsEmpty();
         ShouldMatchResolvedSymbol(result.Symbol, "AppOrchestrator", "NamedType", Path.Combine("ProjectApp", "AppOrchestrator.cs"));
+        result.Symbol!.QualifiedDisplayName.Is("ProjectApp.AppOrchestrator");
+    }
+
+    [Fact]
+    public async Task ResolveSymbolAsync_WithGenericQualifiedName_ReturnsResolvedGenericTypeSymbol()
+    {
+        var result = await Sut.ExecuteAsync(CancellationToken.None, qualifiedName: "ProjectCore.OperationBase<TInput>", projectName: "ProjectCore");
+
+        result.Error.ShouldBeNone();
+        result.IsAmbiguous.IsFalse();
+        result.Candidates.IsEmpty();
+        ShouldMatchResolvedSymbol(result.Symbol, "OperationBase<TInput>", "NamedType", Path.Combine("ProjectCore", "Contracts.cs"));
+        result.Symbol!.QualifiedDisplayName.Is("ProjectCore.OperationBase<TInput>");
+    }
+
+    [Fact]
+    public async Task ResolveSymbolAsync_WithQualifiedMemberSignature_ReturnsResolvedMethodSymbol()
+    {
+        var result = await Sut.ExecuteAsync(
+            CancellationToken.None,
+            qualifiedName: "ProjectImpl.FastWorkItemOperation.ExecuteAsync(Guid, string, CancellationToken)",
+            projectName: "ProjectImpl");
+
+        result.Error.ShouldBeNone();
+        result.IsAmbiguous.IsFalse();
+        result.Candidates.IsEmpty();
+        ShouldMatchResolvedMember(result.Symbol, "ExecuteAsync", "Method", Path.Combine("ProjectImpl", "WorkItemOperations.cs"), 27);
+        result.Symbol!.QualifiedDisplayName.Is("ProjectImpl.FastWorkItemOperation.ExecuteAsync(Guid, string, CancellationToken)");
     }
 
     [Fact]
@@ -157,6 +193,20 @@ public sealed class ResolveSymbolToolTests(SharedSandboxFixture fixture, ITestOu
         result.IsAmbiguous.Is(false);
         result.Candidates.IsEmpty();
         ShouldMatchResolvedSymbol(result.Symbol, "FastWorkItemOperation", "NamedType", Path.Combine("ProjectImpl", "WorkItemOperations.cs"));
+    }
+
+    [Fact]
+    public async Task ResolveSymbolAsync_WithAmbiguousQualifiedMemberName_ReturnsStructuredCandidates()
+    {
+        var result = await Sut.ExecuteAsync(CancellationToken.None, qualifiedName: "ProjectImpl.FastWorkItemOperation.ExecuteAsync", projectName: "ProjectImpl");
+
+        result.Error.ShouldHaveCode(ErrorCodes.AmbiguousSymbol);
+        result.Symbol.IsNull();
+        result.IsAmbiguous.IsTrue();
+        result.Candidates.Count.Is(3);
+        ShouldContainCandidate(result.Candidates, "ProjectImpl.FastWorkItemOperation.ExecuteAsync(WorkItem, CancellationToken)", "ProjectImpl");
+        ShouldContainCandidate(result.Candidates, "ProjectImpl.FastWorkItemOperation.ExecuteAsync(Guid, string, CancellationToken)", "ProjectImpl");
+        ShouldContainCandidate(result.Candidates, "ProjectImpl.FastWorkItemOperation.ExecuteAsync(Guid, string, int, CancellationToken)", "ProjectImpl");
     }
 
     [Fact]

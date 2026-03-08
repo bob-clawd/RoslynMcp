@@ -17,8 +17,8 @@ public static partial class CodeUnderstandingExtensions
         CancellationToken ct)
     {
         var normalizedQualifiedName = qualifiedName.NormalizeQualifiedName();
-        var shortName = normalizedQualifiedName.Split('.').LastOrDefault();
-        if (string.IsNullOrWhiteSpace(shortName))
+        var query = QualifiedSymbolQuery.Parse(normalizedQualifiedName);
+        if (string.IsNullOrWhiteSpace(query.LookupName))
         {
             return Array.Empty<ResolveSymbolCandidate>();
         }
@@ -30,7 +30,7 @@ public static partial class CodeUnderstandingExtensions
         {
             var symbols = await SymbolFinder.FindDeclarationsAsync(
                     project,
-                    shortName,
+                    query.LookupName,
                     ignoreCase: false,
                     filter: SymbolFilter.TypeAndMember,
                     cancellationToken: ct)
@@ -52,29 +52,29 @@ public static partial class CodeUnderstandingExtensions
         }
 
         var strictMatches = candidates
-            .Where(match => match.Symbol.MatchesQualifiedName(normalizedQualifiedName))
+            .Where(match => query.Matches(match.Symbol))
             .ToArray();
         if (strictMatches.Length > 0)
         {
-            return OrderResolveSymbolCandidates(strictMatches, shortName);
+            return OrderResolveSymbolCandidates(strictMatches, query.LookupName);
         }
 
-        if (!normalizedQualifiedName.LooksLikeShortNameQuery())
+        if (!query.IsShortNameOnly)
         {
             return Array.Empty<ResolveSymbolCandidate>();
         }
 
         var caseSensitiveMatches = candidates
-            .Where(match => string.Equals(match.Symbol.Name, shortName, StringComparison.Ordinal))
+            .Where(match => string.Equals(match.Symbol.Name, query.LookupName, StringComparison.Ordinal))
             .ToArray();
 
         var shortNameMatches = caseSensitiveMatches.Length > 0
             ? caseSensitiveMatches
             : candidates
-                .Where(match => string.Equals(match.Symbol.Name, shortName, StringComparison.OrdinalIgnoreCase))
+                .Where(match => string.Equals(match.Symbol.Name, query.LookupName, StringComparison.OrdinalIgnoreCase))
                 .ToArray();
 
-        return OrderResolveSymbolCandidates(shortNameMatches, shortName);
+        return OrderResolveSymbolCandidates(shortNameMatches, query.LookupName);
     }
 
     public static IReadOnlyList<Project> ResolveProjectSelector(
@@ -304,7 +304,8 @@ public static partial class CodeUnderstandingExtensions
                     filePath,
                     line,
                     column,
-                    match.ProjectName);
+                    match.ProjectName,
+                    match.Symbol.ToQualifiedDisplayName());
             })
             .ToArray();
     }

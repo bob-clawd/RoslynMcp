@@ -160,7 +160,8 @@ public sealed record ResolvedSymbolSummary(
     string Kind,
     string FilePath,
     int? Line,
-    int? Column);
+    int? Column,
+    string? QualifiedDisplayName = null);
 
 public sealed record ResolveSymbolCandidate(
     string SymbolId,
@@ -169,7 +170,8 @@ public sealed record ResolveSymbolCandidate(
     string FilePath,
     int? Line,
     int? Column,
-    string ProjectName);
+    string ProjectName,
+    string? QualifiedDisplayName = null);
 
 public sealed record ResolveSymbolResult(
     ResolvedSymbolSummary? Symbol,

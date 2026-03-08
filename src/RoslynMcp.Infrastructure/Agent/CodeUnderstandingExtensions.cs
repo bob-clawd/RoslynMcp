@@ -246,6 +246,133 @@ public static partial class CodeUnderstandingExtensions
         return string.Equals(csharpError, normalizedQualifiedName, StringComparison.Ordinal);
     }
 
+    public static string RemoveAllWhitespace(this string value)
+        => string.Concat(value.Where(static ch => !char.IsWhiteSpace(ch)));
+
+    internal static IReadOnlyList<QualifiedNameSegment> GetQualifiedTypeSegments(this INamedTypeSymbol symbol, bool includeSelf)
+    {
+        var segments = new Stack<QualifiedNameSegment>();
+
+        var currentType = includeSelf ? symbol : symbol.ContainingType;
+        while (currentType != null)
+        {
+            segments.Push(new QualifiedNameSegment(currentType.Name, currentType.Arity > 0 ? currentType.Arity : null));
+            currentType = currentType.ContainingType;
+        }
+
+        var namespaceSymbol = symbol.ContainingNamespace;
+        while (namespaceSymbol != null && !namespaceSymbol.IsGlobalNamespace)
+        {
+            segments.Push(new QualifiedNameSegment(namespaceSymbol.Name, null));
+            namespaceSymbol = namespaceSymbol.ContainingNamespace;
+        }
+
+        return segments.ToArray();
+    }
+
+    internal static IReadOnlyList<QualifiedNameSegment> GetQualifiedContainerSegments(this ISymbol symbol)
+    {
+        if (symbol.ContainingType != null)
+        {
+            return symbol.ContainingType.GetQualifiedTypeSegments(includeSelf: true);
+        }
+
+        var segments = new Stack<QualifiedNameSegment>();
+        var namespaceSymbol = symbol.ContainingNamespace;
+        while (namespaceSymbol != null && !namespaceSymbol.IsGlobalNamespace)
+        {
+            segments.Push(new QualifiedNameSegment(namespaceSymbol.Name, null));
+            namespaceSymbol = namespaceSymbol.ContainingNamespace;
+        }
+
+        return segments.ToArray();
+    }
+
+    public static IEnumerable<string> GetComparableTypeNames(this ITypeSymbol type)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal)
+        {
+            type.ToReadableTypeReference(includeNamespaces: false).NormalizeQualifiedName().RemoveAllWhitespace(),
+            type.ToReadableTypeReference(includeNamespaces: true).NormalizeQualifiedName().RemoveAllWhitespace()
+        };
+
+        return names;
+    }
+
+    public static string ToQualifiedDisplayName(this ISymbol symbol)
+    {
+        if (symbol is INamedTypeSymbol namedType)
+        {
+            return namedType.ToReadableQualifiedTypeName();
+        }
+
+        if (symbol is IMethodSymbol method)
+        {
+            var container = method.ContainingType?.ToReadableQualifiedTypeName() ?? method.ContainingNamespace.NormalizeNamespace();
+            var methodName = method.MethodKind == MethodKind.Constructor
+                ? method.ContainingType?.Name ?? method.Name
+                : method.Name;
+            var parameters = string.Join(", ", method.Parameters.Select(static parameter => parameter.Type.ToReadableTypeReference(includeNamespaces: false)));
+            return $"{container}.{methodName}({parameters})";
+        }
+
+        if (symbol.ContainingType != null)
+        {
+            return $"{symbol.ContainingType.ToReadableQualifiedTypeName()}.{symbol.Name}";
+        }
+
+        var ns = symbol.ContainingNamespace.NormalizeNamespace();
+        return string.IsNullOrEmpty(ns) ? symbol.Name : $"{ns}.{symbol.Name}";
+    }
+
+    public static string ToReadableQualifiedTypeName(this INamedTypeSymbol type)
+    {
+        var segments = new List<string>();
+        var ns = type.ContainingNamespace.NormalizeNamespace();
+        if (!string.IsNullOrEmpty(ns))
+        {
+            segments.Add(ns);
+        }
+
+        var typeStack = new Stack<INamedTypeSymbol>();
+        for (var current = type; current != null; current = current.ContainingType)
+        {
+            typeStack.Push(current);
+        }
+
+        while (typeStack.Count > 0)
+        {
+            segments.Add(typeStack.Pop().ToReadableTypeName());
+        }
+
+        return string.Join(".", segments);
+    }
+
+    public static string ToReadableTypeReference(this ITypeSymbol type, bool includeNamespaces)
+        => type.ToDisplayString(CreateReadableTypeFormat(includeNamespaces));
+
+    public static string ToReadableTypeName(this INamedTypeSymbol type)
+    {
+        if (type.Arity == 0)
+        {
+            return type.Name;
+        }
+
+        var typeParameters = type.TypeParameters.Length > 0
+            ? type.TypeParameters.Select(static parameter => parameter.Name)
+            : type.TypeArguments.Select(static argument => argument.ToReadableTypeReference(includeNamespaces: false));
+        return $"{type.Name}<{string.Join(", ", typeParameters)}>";
+    }
+
+    private static SymbolDisplayFormat CreateReadableTypeFormat(bool includeNamespaces)
+        => new(
+            globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
+            typeQualificationStyle: includeNamespaces
+                ? SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces
+                : SymbolDisplayTypeQualificationStyle.NameOnly,
+            genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters,
+            miscellaneousOptions: SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
+
     public static ResolvedSymbolSummary ToResolvedSymbol(this ISymbol symbol)
     {
         var (filePath, line, column) = symbol.GetDeclarationPosition();
@@ -255,7 +382,8 @@ public static partial class CodeUnderstandingExtensions
             symbol.Kind.ToString(),
             filePath,
             line,
-            column);
+            column,
+            symbol.ToQualifiedDisplayName());
     }
 
     public static DiagnosticsSummary ToDiagnosticsSummary(this IReadOnlyList<DiagnosticItem> diagnostics)
