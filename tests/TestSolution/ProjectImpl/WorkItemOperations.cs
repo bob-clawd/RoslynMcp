@@ -45,6 +45,11 @@ public sealed class SafeWorkItemOperation : OperationBase<WorkItem>, IWorkItemOp
         return new OperationResult(true, $"Safe:{validated.Name}");
     }
 
+    protected override Task DelayAsync(CancellationToken cancellationToken)
+    {
+        return Task.Delay(10, cancellationToken);
+    }
+
     private async Task<WorkItem> ValidateAsync(WorkItem input, CancellationToken cancellationToken)
     {
         RaiseStep("Safe.Validate", input);

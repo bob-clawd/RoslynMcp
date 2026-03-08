@@ -66,11 +66,13 @@ public sealed class FindImplementationsToolTests(SharedSandboxFixture fixture, I
         result.Symbol!.Name.Is("ExecuteAsync");
         result.Symbol.Kind.Is("Method");
         result.Symbol.ContainingType.Is("global::ProjectCore.OperationBase<TInput>");
-        result.Implementations.IsEmpty();
+        ShouldMatchImplementations(result.Implementations,
+            ("ExecuteAsync", "Method", Path.Combine("ProjectImpl", "WorkItemOperations.cs"), 17, "global::ProjectImpl.FastWorkItemOperation"),
+            ("ExecuteAsync", "Method", Path.Combine("ProjectImpl", "WorkItemOperations.cs"), 40, "global::ProjectImpl.SafeWorkItemOperation"));
     }
 
     [Fact]
-    public async Task FindImplementationsAsync_WithVirtualMethodWithoutOverrides_ReturnsEmptyResult()
+    public async Task FindImplementationsAsync_WithVirtualMethod_ReturnsOverrides()
     {
         var symbolId = await ResolveSymbolIdAsync(ContractsPath, line: 49, column: 30);
 
@@ -81,7 +83,37 @@ public sealed class FindImplementationsToolTests(SharedSandboxFixture fixture, I
         result.Symbol!.Name.Is("DelayAsync");
         result.Symbol.Kind.Is("Method");
         result.Symbol.ContainingType.Is("global::ProjectCore.OperationBase<TInput>");
-        result.Implementations.IsEmpty();
+        ShouldMatchImplementations(result.Implementations,
+            ("DelayAsync", "Method", Path.Combine("ProjectImpl", "WorkItemOperations.cs"), 48, "global::ProjectImpl.SafeWorkItemOperation"));
+    }
+
+    [Fact]
+    public async Task FindImplementationsAsync_WithInterfaceMember_MatchesTraceCallFlowPossibleTargets()
+    {
+        var interfaceMethodSymbolId = await ResolveSymbolIdAsync(AppOrchestratorPath, line: 56, column: 27);
+        var appOrchestratorExecuteFlowAsync = await ResolveSymbolIdAsync(AppOrchestratorPath, line: 54, column: 35);
+        var traceTool = Context.GetRequiredService<TraceCallFlowTool>();
+
+        var implementations = await Sut.ExecuteAsync(CancellationToken.None, interfaceMethodSymbolId);
+        var trace = await traceTool.ExecuteAsync(CancellationToken.None, symbolId: appOrchestratorExecuteFlowAsync, direction: "downstream", depth: 1);
+
+        implementations.Error.ShouldBeNone();
+        trace.Error.ShouldBeNone();
+
+        var dispatchEdge = trace.Edges.Single(edge => edge.Uncertainties is not null && edge.Uncertainties.Any(uncertainty => uncertainty.Category == FlowUncertaintyCategories.InterfaceDispatch));
+        dispatchEdge.PossibleTargets.IsNotNull();
+
+        var implementationHandles = implementations.Implementations
+            .Select(static implementation => implementation.Reference!.Handle)
+            .OrderBy(static handle => handle, StringComparer.Ordinal)
+            .ToArray();
+
+        var possibleTargetHandles = dispatchEdge.PossibleTargets!
+            .Select(static target => target.Handle)
+            .OrderBy(static handle => handle, StringComparer.Ordinal)
+            .ToArray();
+
+        implementationHandles.Is(possibleTargetHandles);
     }
 
     [Fact]

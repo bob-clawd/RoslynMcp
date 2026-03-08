@@ -1,5 +1,4 @@
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynMcp.Core;
 using RoslynMcp.Core.Contracts;
 using RoslynMcp.Core.Models;
@@ -405,9 +404,8 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
 
     private async Task<IReadOnlyList<SymbolReference>> FindPossibleTargetsAsync(IMethodSymbol method, Solution solution, CancellationToken ct)
     {
-        var implementations = await SymbolFinder.FindImplementationsAsync(method, solution, cancellationToken: ct).ConfigureAwait(false);
+        var implementations = await PolymorphicImplementationDiscovery.FindImplementationSymbolsAsync(method, solution, ct).ConfigureAwait(false);
         return implementations
-            .Select(static implementation => implementation.OriginalDefinition ?? implementation)
             .Where(static implementation => implementation.Kind == SymbolKind.Method)
             .Where(static implementation => implementation.Locations.Any(location => location.IsInSource))
             .Where(static implementation => SourceVisibility.ShouldIncludeInInteractiveTrace(implementation.GetDeclarationPosition().FilePath))

@@ -2,7 +2,6 @@ using RoslynMcp.Core;
 using RoslynMcp.Core.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
-using System.Collections.Immutable;
 
 namespace RoslynMcp.Infrastructure.Navigation;
 
@@ -60,9 +59,7 @@ internal sealed class ReferenceSearchService : IReferenceSearchService
 
     public async Task<IReadOnlyList<SymbolDescriptor>> FindImplementationsAsync(ISymbol symbol, Solution solution, CancellationToken ct)
     {
-        var projects = solution.Projects.ToImmutableHashSet();
-        var implementations = await SymbolFinder.FindImplementationsAsync(symbol, solution, projects, ct)
-            .ConfigureAwait(false);
+        var implementations = await PolymorphicImplementationDiscovery.FindImplementationSymbolsAsync(symbol, solution, ct).ConfigureAwait(false);
 
         var uniqueDescriptors = new Dictionary<string, SymbolDescriptor>(StringComparer.Ordinal);
         foreach (var implementation in implementations)
