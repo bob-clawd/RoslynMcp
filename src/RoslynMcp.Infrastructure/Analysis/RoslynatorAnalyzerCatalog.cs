@@ -45,9 +45,7 @@ internal sealed class RoslynatorAnalyzerCatalog : IRoslynAnalyzerCatalog
         if (!string.IsNullOrWhiteSpace(overridePath))
         {
             if (File.Exists(overridePath))
-            {
                 return overridePath;
-            }
 
             throw new InvalidOperationException(
                 $"Roslynator analyzer path '{overridePath}' configured via '{RoslynatorAnalyzerPathEnvVar}' could not be found.");
@@ -87,9 +85,7 @@ internal sealed class RoslynatorAnalyzerCatalog : IRoslynAnalyzerCatalog
         public void AddDependencyLocation(string fullPath)
         {
             if (string.IsNullOrWhiteSpace(fullPath))
-            {
                 return;
-            }
 
             var directory = Path.GetDirectoryName(fullPath);
             if (!string.IsNullOrEmpty(directory))
@@ -113,18 +109,14 @@ internal sealed class RoslynatorAnalyzerCatalog : IRoslynAnalyzerCatalog
             lock (_gate)
             {
                 if (_loadedAssemblies.TryGetValue(fullPath, out var assembly))
-                {
                     return assembly;
-                }
 
                 var loaded = AssemblyLoadContext.Default.LoadFromAssemblyPath(fullPath);
                 _loadedAssemblies[fullPath] = loaded;
 
                 var directory = Path.GetDirectoryName(fullPath);
                 if (!string.IsNullOrEmpty(directory))
-                {
                     _directories.Add(directory);
-                }
 
                 return loaded;
             }
@@ -138,14 +130,10 @@ internal sealed class RoslynatorAnalyzerCatalog : IRoslynAnalyzerCatalog
                 {
                     var candidate = Path.Combine(directory, assemblyName.Name + ".dll");
                     if (_loadedAssemblies.TryGetValue(candidate, out var existing))
-                    {
                         return existing;
-                    }
 
                     if (File.Exists(candidate))
-                    {
                         return LoadFromPath(candidate);
-                    }
                 }
             }
 

@@ -53,8 +53,7 @@ public sealed class RoslynAnalysisService : IAnalysisService
             var (solution, error) = await _solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return new AnalyzeSolutionResult(Array.Empty<DiagnosticItem>(),
-                    error ?? new ErrorInfo(ErrorCodes.AnalysisFailed, "No solution has been selected."));
+                return new AnalyzeSolutionResult([], error ?? new ErrorInfo(ErrorCodes.AnalysisFailed, "No solution has been selected."));
             }
 
             var diagnostics = await _diagnosticsRunner.RunDiagnosticsAsync(solution, ct).ConfigureAwait(false);
@@ -67,8 +66,7 @@ public sealed class RoslynAnalysisService : IAnalysisService
         catch (Exception ex)
         {
             _logger.LogError(ex, "AnalyzeSolution failed");
-            return new AnalyzeSolutionResult(Array.Empty<DiagnosticItem>(),
-                new ErrorInfo(ErrorCodes.AnalysisFailed, $"Diagnostics failed: {ex.Message}"));
+            return new AnalyzeSolutionResult([], new ErrorInfo(ErrorCodes.AnalysisFailed, $"Diagnostics failed: {ex.Message}"));
         }
     }
 
@@ -82,8 +80,7 @@ public sealed class RoslynAnalysisService : IAnalysisService
             var (solution, error) = await _solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return new GetCodeMetricsResult(Array.Empty<MetricItem>(),
-                    error ?? new ErrorInfo(ErrorCodes.AnalysisFailed, "No solution has been selected."));
+                return new GetCodeMetricsResult([], error ?? new ErrorInfo(ErrorCodes.AnalysisFailed, "No solution has been selected."));
             }
 
             var metrics = await _metricsCollector.CollectMetricsAsync(solution, AnalysisScopes.Solution, path: null, ct).ConfigureAwait(false);
@@ -96,8 +93,7 @@ public sealed class RoslynAnalysisService : IAnalysisService
         catch (Exception ex)
         {
             _logger.LogError(ex, "GetCodeMetrics failed");
-            return new GetCodeMetricsResult(Array.Empty<MetricItem>(),
-                new ErrorInfo(ErrorCodes.AnalysisFailed, $"Metrics collection failed: {ex.Message}"));
+            return new GetCodeMetricsResult([], new ErrorInfo(ErrorCodes.AnalysisFailed, $"Metrics collection failed: {ex.Message}"));
         }
     }
 
@@ -107,47 +103,20 @@ public sealed class RoslynAnalysisService : IAnalysisService
         ct.ThrowIfCancellationRequested();
 
         if (!_scopeResolver.IsValidScope(request.Scope))
-        {
-            return new AnalyzeScopeResult(
-                request.Scope,
-                request.Path,
-                Array.Empty<DiagnosticItem>(),
-                Array.Empty<MetricItem>(),
-                new ErrorInfo(ErrorCodes.InvalidRequest, "scope must be one of: document, project, solution."));
-        }
+            return new AnalyzeScopeResult(request.Scope, request.Path, [], [], new ErrorInfo(ErrorCodes.InvalidRequest, "scope must be one of: document, project, solution."));
 
         if (string.Equals(request.Scope, AnalysisScopes.Document, StringComparison.Ordinal) && string.IsNullOrWhiteSpace(request.Path))
-        {
-            return new AnalyzeScopeResult(
-                request.Scope,
-                request.Path,
-                Array.Empty<DiagnosticItem>(),
-                Array.Empty<MetricItem>(),
-                new ErrorInfo(ErrorCodes.InvalidRequest, "path is required when scope is document."));
-        }
+            return new AnalyzeScopeResult(request.Scope, request.Path, [], [], new ErrorInfo(ErrorCodes.InvalidRequest, "path is required when scope is document."));
 
         try
         {
             var (solution, error) = await _solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
             if (solution == null)
-            {
-                return new AnalyzeScopeResult(request.Scope,
-                    request.Path,
-                    Array.Empty<DiagnosticItem>(),
-                    Array.Empty<MetricItem>(),
-                    error ?? new ErrorInfo(ErrorCodes.SolutionNotSelected, "No solution has been selected."));
-            }
+                return new AnalyzeScopeResult(request.Scope, request.Path, [], [], error ?? new ErrorInfo(ErrorCodes.SolutionNotSelected, "No solution has been selected."));
 
             var projects = _scopeResolver.ResolveProjectsForScope(solution, request.Scope, request.Path).ToArray();
             if (projects.Length == 0)
-            {
-                return new AnalyzeScopeResult(
-                    request.Scope,
-                    request.Path,
-                    Array.Empty<DiagnosticItem>(),
-                    Array.Empty<MetricItem>(),
-                    new ErrorInfo(ErrorCodes.PathOutOfScope, "The provided path is outside the selected solution scope."));
-            }
+                return new AnalyzeScopeResult(request.Scope, request.Path, [], [], new ErrorInfo(ErrorCodes.PathOutOfScope, "The provided path is outside the selected solution scope."));
 
             var diagnostics = await _diagnosticsRunner.RunDiagnosticsAsync(projects, ct).ConfigureAwait(false);
             var metrics = await _metricsCollector.CollectMetricsAsync(projects, request.Scope, request.Path, ct).ConfigureAwait(false);
@@ -164,12 +133,7 @@ public sealed class RoslynAnalysisService : IAnalysisService
         catch (Exception ex)
         {
             _logger.LogError(ex, "AnalyzeScope failed for {Scope}:{Path}", request.Scope, request.Path);
-            return new AnalyzeScopeResult(
-                request.Scope,
-                request.Path,
-                Array.Empty<DiagnosticItem>(),
-                Array.Empty<MetricItem>(),
-                new ErrorInfo(ErrorCodes.AnalysisFailed, $"Scoped analysis failed: {ex.Message}"));
+            return new AnalyzeScopeResult(request.Scope, request.Path, [], [], new ErrorInfo(ErrorCodes.AnalysisFailed, $"Scoped analysis failed: {ex.Message}"));
         }
     }
 }

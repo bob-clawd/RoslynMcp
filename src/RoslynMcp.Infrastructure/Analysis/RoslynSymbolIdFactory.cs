@@ -23,10 +23,9 @@ internal sealed class RoslynSymbolIdFactory : IRoslynSymbolIdFactory
     {
         var resolved = symbol.OriginalDefinition ?? symbol;
         var result = (string?)CreateString.Invoke(null, [resolved, CancellationToken.None]);
+
         if (!string.IsNullOrEmpty(result))
-        {
             return result;
-        }
 
         return resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
     }
