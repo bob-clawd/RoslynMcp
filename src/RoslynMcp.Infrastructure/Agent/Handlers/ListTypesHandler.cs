@@ -5,44 +5,25 @@ using RoslynMcp.Infrastructure.Navigation;
 
 namespace RoslynMcp.Infrastructure.Agent.Handlers;
 
-internal sealed class ListTypesHandler
+internal sealed class ListTypesHandler(CodeUnderstandingQueryService queries)
 {
-    private static readonly ResultContextMetadata EmptyContext = new(
-        SourceBiases.Unknown,
-        ResultCompletenessStates.Degraded,
-        Array.Empty<string>(),
-        Array.Empty<string>());
-
-    private readonly CodeUnderstandingQueryService _queries;
-
-    public ListTypesHandler(CodeUnderstandingQueryService queries)
-    {
-        _queries = queries;
-    }
+    private static readonly ResultContextMetadata EmptyContext = new(SourceBiases.Unknown, ResultCompletenessStates.Degraded, [], []);
 
     public async Task<ListTypesResult> HandleAsync(ListTypesRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var (solution, solutionError) = await _queries.GetCurrentSolutionWithAutoBootstrapAsync(
+        var (solution, solutionError) = await queries.GetCurrentSolutionWithAutoBootstrapAsync(
             "Call load_solution first to select a solution before listing types.",
             request.ProjectPath,
             ct).ConfigureAwait(false);
+        
         if (solution == null)
-        {
-            return new ListTypesResult(
-                Array.Empty<TypeListEntry>(),
-                0,
-                EmptyContext,
-                AgentErrorInfo.Normalize(solutionError, "Call load_solution first to select a solution before listing types."));
-        }
+            return new ListTypesResult([], 0, EmptyContext, AgentErrorInfo.Normalize(solutionError, "Call load_solution first to select a solution before listing types."));
 
         if (!request.Kind.TryNormalizeTypeKind(out var normalizedKind))
         {
-            return new ListTypesResult(
-                Array.Empty<TypeListEntry>(),
-                0,
-                EmptyContext,
+            return new ListTypesResult([], 0, EmptyContext,
                 AgentErrorInfo.Create(
                     ErrorCodes.InvalidInput,
                     "kind must be one of: class, record, interface, enum, struct.",
@@ -54,10 +35,7 @@ internal sealed class ListTypesHandler
 
         if (!request.Accessibility.TryNormalizeAccessibility(out var normalizedAccessibility))
         {
-            return new ListTypesResult(
-                Array.Empty<TypeListEntry>(),
-                0,
-                EmptyContext,
+            return new ListTypesResult([], 0, EmptyContext,
                 AgentErrorInfo.Create(
                     ErrorCodes.InvalidInput,
                     "accessibility must be one of: public, internal, protected, private, protected_internal, private_protected.",
@@ -75,9 +53,7 @@ internal sealed class ListTypesHandler
             out var selectorError);
 
         if (selectorError != null)
-        {
-            return new ListTypesResult(Array.Empty<TypeListEntry>(), 0, EmptyContext, selectorError);
-        }
+            return new ListTypesResult([], 0, EmptyContext, selectorError);
 
         var namespacePrefix = request.NamespacePrefix.NormalizeOptional();
         var entries = new List<TypeListEntry>();
@@ -110,32 +86,22 @@ internal sealed class ListTypesHandler
             foreach (var type in compilation.Assembly.GlobalNamespace.EnumerateTypes())
             {
                 if (!type.Locations.Any(static location => location.IsInSource))
-                {
                     continue;
-                }
 
                 var kind = type.ToTypeKind();
                 if (kind == null)
-                {
                     continue;
-                }
 
                 if (normalizedKind != null && !string.Equals(kind, normalizedKind, StringComparison.Ordinal))
-                {
                     continue;
-                }
 
                 var accessibility = type.DeclaredAccessibility.NormalizeAccessibility();
                 if (normalizedAccessibility != null && !string.Equals(accessibility, normalizedAccessibility, StringComparison.Ordinal))
-                {
                     continue;
-                }
 
                 var typeNamespace = type.ContainingNamespace.NormalizeNamespace();
                 if (namespacePrefix != null && !typeNamespace.StartsWith(namespacePrefix, StringComparison.Ordinal))
-                {
                     continue;
-                }
 
                 var (filePath, line, column) = type.GetDeclarationPosition();
                 var reference = type.ToSymbolReference();
