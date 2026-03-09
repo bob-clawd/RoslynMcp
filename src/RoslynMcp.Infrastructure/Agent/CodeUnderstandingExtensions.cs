@@ -194,11 +194,8 @@ public static partial class CodeUnderstandingExtensions
 
     public static (string FilePath, int? StartLine, int? StartColumn, int? EndLine, int? EndColumn) GetSourceSpan(this ISymbol? symbol)
     {
-        var location = symbol?.Locations.FirstOrDefault(static l => l.IsInSource);
-        if (location == null)
-        {
+        if(symbol?.Locations.FirstOrDefault(static l => l.IsInSource) is not { } location)
             return (string.Empty, null, null, null, null);
-        }
 
         var span = location.GetLineSpan();
         var start = span.StartLinePosition;
@@ -222,10 +219,8 @@ public static partial class CodeUnderstandingExtensions
 
     public static string NormalizeNamespace(this INamespaceSymbol? ns)
     {
-        if (ns == null || ns.IsGlobalNamespace)
-        {
+        if (ns?.IsGlobalNamespace != false)
             return string.Empty;
-        }
 
         return ns.ToDisplayString();
     }
@@ -339,6 +334,33 @@ public static partial class CodeUnderstandingExtensions
                 symbol.ToQualifiedDisplayName(),
                 CreateOptionalSourceLocation(filePath, line, column));
         }
+
+        private string GetReadableHandlePrefix()
+            => symbol switch
+            {
+                INamedTypeSymbol => "type",
+                IMethodSymbol { MethodKind: MethodKind.Constructor } => "ctor",
+                IMethodSymbol => "method",
+                IPropertySymbol => "property",
+                IFieldSymbol => "field",
+                IEventSymbol => "event",
+                _ => symbol.Kind.ToString().ToLowerInvariant()
+            };
+
+        public ResolvedSymbolSummary ToResolvedSymbol()
+        {
+            var (filePath, line, column) = symbol.GetDeclarationPosition();
+            var reference = symbol.ToSymbolReference();
+            return new ResolvedSymbolSummary(
+                reference.SymbolId,
+                symbol.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.MinimallyQualifiedFormat),
+                symbol.Kind.ToString(),
+                filePath,
+                line,
+                column,
+                reference.QualifiedDisplayName,
+                reference);
+        }
     }
 
     public static string ToReadableQualifiedTypeName(this INamedTypeSymbol type)
@@ -346,9 +368,7 @@ public static partial class CodeUnderstandingExtensions
         var segments = new List<string>();
         var ns = type.ContainingNamespace.NormalizeNamespace();
         if (!string.IsNullOrEmpty(ns))
-        {
             segments.Add(ns);
-        }
 
         var typeStack = new Stack<INamedTypeSymbol>();
         for (var current = type; current != null; current = current.ContainingType)
@@ -366,9 +386,7 @@ public static partial class CodeUnderstandingExtensions
     public static string ToReadableTypeName(this INamedTypeSymbol type)
     {
         if (type.Arity == 0)
-        {
             return type.Name;
-        }
 
         var typeParameters = type.TypeParameters.Length > 0
             ? type.TypeParameters.Select(static parameter => parameter.Name)
@@ -394,37 +412,10 @@ public static partial class CodeUnderstandingExtensions
             genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters,
             miscellaneousOptions: SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
 
-    private static string GetReadableHandlePrefix(this ISymbol symbol)
-        => symbol switch
-        {
-            INamedTypeSymbol => "type",
-            IMethodSymbol { MethodKind: MethodKind.Constructor } => "ctor",
-            IMethodSymbol => "method",
-            IPropertySymbol => "property",
-            IFieldSymbol => "field",
-            IEventSymbol => "event",
-            _ => symbol.Kind.ToString().ToLowerInvariant()
-        };
-
     private static SourceLocation? CreateOptionalSourceLocation(string filePath, int? line, int? column)
         => string.IsNullOrWhiteSpace(filePath) || !line.HasValue || !column.HasValue
             ? null
             : new SourceLocation(filePath, line.Value, column.Value);
-
-    public static ResolvedSymbolSummary ToResolvedSymbol(this ISymbol symbol)
-    {
-        var (filePath, line, column) = symbol.GetDeclarationPosition();
-        var reference = symbol.ToSymbolReference();
-        return new ResolvedSymbolSummary(
-            reference.SymbolId,
-            symbol.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.MinimallyQualifiedFormat),
-            symbol.Kind.ToString(),
-            filePath,
-            line,
-            column,
-            reference.QualifiedDisplayName,
-            reference);
-    }
 
     extension(IReadOnlyList<DiagnosticItem> diagnostics)
     {
