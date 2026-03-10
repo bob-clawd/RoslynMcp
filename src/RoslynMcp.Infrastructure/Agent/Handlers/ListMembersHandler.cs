@@ -7,38 +7,25 @@ namespace RoslynMcp.Infrastructure.Agent.Handlers;
 /// Lists members (method, property, field, event, constructor) of a type with optional inheritance traversal.
 /// Filters by member kind and accessibility.
 /// </summary>
-internal sealed class ListMembersHandler
+internal sealed class ListMembersHandler(CodeUnderstandingQueryService queries)
 {
-    private readonly CodeUnderstandingQueryService _queries;
-
-    public ListMembersHandler(CodeUnderstandingQueryService queries)
-    {
-        _queries = queries;
-    }
-
     public async Task<ListMembersResult> HandleAsync(ListMembersRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var (solution, solutionError) = await _queries.GetCurrentSolutionWithAutoBootstrapAsync(
+        var (solution, solutionError) = await queries.GetCurrentSolutionWithAutoBootstrapAsync(
             "Call load_solution first to select a solution before listing members.",
             request.Path,
             ct).ConfigureAwait(false);
         if (solution == null)
         {
-            return new ListMembersResult(
-                Array.Empty<MemberListEntry>(),
-                0,
-                request.IncludeInherited,
+            return new ListMembersResult([], 0, request.IncludeInherited,
                 AgentErrorInfo.Normalize(solutionError, "Call load_solution first to select a solution before listing members."));
         }
 
         if (!request.Kind.TryNormalizeMemberKind(out var normalizedMemberKind))
         {
-            return new ListMembersResult(
-                Array.Empty<MemberListEntry>(),
-                0,
-                request.IncludeInherited,
+            return new ListMembersResult([], 0, request.IncludeInherited,
                 AgentErrorInfo.Create(
                     ErrorCodes.InvalidInput,
                     "kind must be one of: method, property, field, event, ctor.",
@@ -50,10 +37,7 @@ internal sealed class ListMembersHandler
 
         if (!request.Accessibility.TryNormalizeAccessibility(out var normalizedAccessibility))
         {
-            return new ListMembersResult(
-                Array.Empty<MemberListEntry>(),
-                0,
-                request.IncludeInherited,
+            return new ListMembersResult([], 0, request.IncludeInherited,
                 AgentErrorInfo.Create(
                     ErrorCodes.InvalidInput,
                     "accessibility must be one of: public, internal, protected, private, protected_internal, private_protected.",
@@ -64,10 +48,7 @@ internal sealed class ListMembersHandler
 
         if (!request.Binding.TryNormalizeBinding(out var normalizedBinding))
         {
-            return new ListMembersResult(
-                Array.Empty<MemberListEntry>(),
-                0,
-                request.IncludeInherited,
+            return new ListMembersResult([], 0, request.IncludeInherited,
                 AgentErrorInfo.Create(
                     ErrorCodes.InvalidInput,
                     "binding must be one of: static, instance.",
@@ -77,11 +58,9 @@ internal sealed class ListMembersHandler
                     ("expected", "static|instance")));
         }
 
-        var typeSymbol = await _queries.ResolveTypeSymbolAsync(request, solution, ct).ConfigureAwait(false);
+        var typeSymbol = await queries.ResolveTypeSymbolAsync(request, solution, ct).ConfigureAwait(false);
         if (typeSymbol.Error != null)
-        {
-            return new ListMembersResult(Array.Empty<MemberListEntry>(), 0, request.IncludeInherited, typeSymbol.Error);
-        }
+            return new ListMembersResult([], 0, request.IncludeInherited, typeSymbol.Error);
 
         var symbols = request.IncludeInherited
             ? typeSymbol.Symbol!.CollectMembersWithInheritance()

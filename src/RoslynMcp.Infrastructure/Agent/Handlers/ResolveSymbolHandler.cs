@@ -8,43 +8,28 @@ namespace RoslynMcp.Infrastructure.Agent.Handlers;
 /// Resolves symbols by symbolId, source position, or qualified name.
 /// Returns symbol metadata including kind, accessibility, and location.
 /// </summary>
-internal sealed class ResolveSymbolHandler
+internal sealed class ResolveSymbolHandler(CodeUnderstandingQueryService queries, ISymbolLookupService symbolLookupService)
 {
-    private readonly CodeUnderstandingQueryService _queries;
-    private readonly ISymbolLookupService _symbolLookupService;
-
-    public ResolveSymbolHandler(CodeUnderstandingQueryService queries, ISymbolLookupService symbolLookupService)
-    {
-        _queries = queries;
-        _symbolLookupService = symbolLookupService;
-    }
-
     public async Task<ResolveSymbolResult> HandleAsync(ResolveSymbolRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var (solution, solutionError) = await _queries.GetCurrentSolutionWithAutoBootstrapAsync(
+        var (solution, solutionError) = await queries.GetCurrentSolutionWithAutoBootstrapAsync(
             "Call load_solution first to select a solution before resolving symbols.",
             request.Path ?? request.ProjectPath,
             ct).ConfigureAwait(false);
         if (solution == null)
         {
-            return new ResolveSymbolResult(
-                null,
-                false,
-                Array.Empty<ResolveSymbolCandidate>(),
+            return new ResolveSymbolResult(null, false, [],
                 AgentErrorInfo.Normalize(solutionError, "Call load_solution first to select a solution before resolving symbols."));
         }
 
         if (!string.IsNullOrWhiteSpace(request.SymbolId))
         {
-            var symbol = await _symbolLookupService.ResolveSymbolAsync(request.SymbolId!, solution, ct).ConfigureAwait(false);
+            var symbol = await symbolLookupService.ResolveSymbolAsync(request.SymbolId!, solution, ct).ConfigureAwait(false);
             if (symbol == null)
             {
-                return new ResolveSymbolResult(
-                    null,
-                    false,
-                    Array.Empty<ResolveSymbolCandidate>(),
+                return new ResolveSymbolResult(null, false, [],
                     AgentErrorInfo.Create(
                         ErrorCodes.SymbolNotFound,
                         $"symbolId '{request.SymbolId}' could not be resolved.",
@@ -58,7 +43,7 @@ internal sealed class ResolveSymbolHandler
 
         if (!string.IsNullOrWhiteSpace(request.Path) && request.Line.HasValue && request.Column.HasValue)
         {
-            var symbol = await _symbolLookupService.GetSymbolAtPositionAsync(
+            var symbol = await symbolLookupService.GetSymbolAtPositionAsync(
                 solution,
                 request.Path!,
                 request.Line.Value,
@@ -67,10 +52,7 @@ internal sealed class ResolveSymbolHandler
 
             if (symbol == null)
             {
-                return new ResolveSymbolResult(
-                    null,
-                    false,
-                    Array.Empty<ResolveSymbolCandidate>(),
+                return new ResolveSymbolResult(null, false, [],
                     AgentErrorInfo.Create(
                         ErrorCodes.SymbolNotFound,
                         "No symbol found at the provided source position.",
@@ -82,65 +64,60 @@ internal sealed class ResolveSymbolHandler
             return new ResolveSymbolResult(symbol.ToResolvedSymbol(), false, Array.Empty<ResolveSymbolCandidate>());
         }
 
-        if (!string.IsNullOrWhiteSpace(request.QualifiedName))
+        if (string.IsNullOrWhiteSpace(request.QualifiedName))
         {
-            var selectedProjects = solution.ResolveProjectSelector(
-                request.ProjectPath,
-                request.ProjectName,
-                request.ProjectId,
-                selectorRequired: false,
-                toolName: "resolve_symbol",
-                out var selectorError);
-
-            if (selectorError != null)
-            {
-                return new ResolveSymbolResult(null, false, Array.Empty<ResolveSymbolCandidate>(), selectorError);
-            }
-
-            var candidates = await request.QualifiedName!.ResolveByQualifiedNameAsync(selectedProjects, ct).ConfigureAwait(false);
-            if (candidates.Length == 0)
-            {
-                return new ResolveSymbolResult(
-                    null,
-                    false,
-                    Array.Empty<ResolveSymbolCandidate>(),
-                    AgentErrorInfo.Create(
-                        ErrorCodes.SymbolNotFound,
-                        $"qualifiedName '{request.QualifiedName}' did not match any symbol.",
-                        "Refine qualifiedName or provide projectName/projectPath/projectId to narrow the lookup.",
-                        ("field", "qualifiedName"),
-                        ("provided", request.QualifiedName)));
-            }
-
-            if (candidates.Length > 1)
-            {
-                return new ResolveSymbolResult(
-                    null,
-                    true,
-                    candidates,
-                    AgentErrorInfo.Create(
-                        ErrorCodes.AmbiguousSymbol,
-                        $"qualifiedName '{request.QualifiedName}' matched multiple symbols.",
-                        "Select one candidate symbolId and call resolve_symbol again, or scope by projectName/projectPath/projectId.",
-                        ("field", "qualifiedName"),
-                        ("provided", request.QualifiedName),
-                        ("candidateCount", candidates.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))));
-            }
-
-            var selected = candidates[0];
-            return new ResolveSymbolResult(
-                new ResolvedSymbolSummary(selected.SymbolId, selected.DisplayName, selected.Kind, selected.FilePath, selected.Line, selected.Column, selected.QualifiedDisplayName, selected.Reference),
-                false,
-                Array.Empty<ResolveSymbolCandidate>());
+            return new ResolveSymbolResult(null, false, [],
+                AgentErrorInfo.Create(
+                    ErrorCodes.InvalidInput,
+                    "Provide symbolId, path+line+column, or qualifiedName.",
+                    "Call resolve_symbol with one selector mode: symbolId, source position, or qualifiedName."));
         }
 
+        var selectedProjects = solution.ResolveProjectSelector(
+            request.ProjectPath,
+            request.ProjectName,
+            request.ProjectId,
+            selectorRequired: false,
+            toolName: "resolve_symbol",
+            out var selectorError);
+
+        if (selectorError != null)
+            return new ResolveSymbolResult(null, false, Array.Empty<ResolveSymbolCandidate>(), selectorError);
+
+        var candidates = await request.QualifiedName!.ResolveByQualifiedNameAsync(selectedProjects, ct).ConfigureAwait(false);
+        if (candidates.Length == 0)
+        {
+            return new ResolveSymbolResult(
+                null,
+                false,
+                Array.Empty<ResolveSymbolCandidate>(),
+                AgentErrorInfo.Create(
+                    ErrorCodes.SymbolNotFound,
+                    $"qualifiedName '{request.QualifiedName}' did not match any symbol.",
+                    "Refine qualifiedName or provide projectName/projectPath/projectId to narrow the lookup.",
+                    ("field", "qualifiedName"),
+                    ("provided", request.QualifiedName)));
+        }
+
+        if (candidates.Length > 1)
+        {
+            return new ResolveSymbolResult(
+                null,
+                true,
+                candidates,
+                AgentErrorInfo.Create(
+                    ErrorCodes.AmbiguousSymbol,
+                    $"qualifiedName '{request.QualifiedName}' matched multiple symbols.",
+                    "Select one candidate symbolId and call resolve_symbol again, or scope by projectName/projectPath/projectId.",
+                    ("field", "qualifiedName"),
+                    ("provided", request.QualifiedName),
+                    ("candidateCount", candidates.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))));
+        }
+
+        var selected = candidates[0];
         return new ResolveSymbolResult(
-            null,
-            false,
-            Array.Empty<ResolveSymbolCandidate>(),
-            AgentErrorInfo.Create(
-                ErrorCodes.InvalidInput,
-                "Provide symbolId, path+line+column, or qualifiedName.",
-                "Call resolve_symbol with one selector mode: symbolId, source position, or qualifiedName."));
+            new ResolvedSymbolSummary(selected.SymbolId, selected.DisplayName, selected.Kind, selected.FilePath, selected.Line, selected.Column, selected.QualifiedDisplayName, selected.Reference),
+            false, []);
+
     }
 }

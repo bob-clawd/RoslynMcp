@@ -66,15 +66,6 @@ internal sealed class ResolveSymbolsBatchHandler(ResolveSymbolHandler resolveSym
     }
 
     private static ResolveSymbolsBatchResult CreateValidationError(string message, params (string Key, string? Value)[] details)
-        => new(
-            Array.Empty<ResolveSymbolsBatchItemResult>(),
-            0,
-            0,
-            0,
-            0,
-            AgentErrorInfo.Create(
-                ErrorCodes.InvalidInput,
-                message,
-                "Call resolve_symbols with 1-100 selector entries.",
-                details));
+        => new([], 0, 0, 0, 0,
+            AgentErrorInfo.Create(ErrorCodes.InvalidInput, message, "Call resolve_symbols with 1-100 selector entries.", details));
 }

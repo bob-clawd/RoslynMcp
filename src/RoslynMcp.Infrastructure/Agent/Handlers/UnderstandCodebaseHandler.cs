@@ -7,32 +7,20 @@ namespace RoslynMcp.Infrastructure.Agent.Handlers;
 /// Provides overview of codebase: lists types, shows structure, returns diagnostics summary.
 /// Used for initial project exploration by AI agents.
 /// </summary>
-internal sealed class UnderstandCodebaseHandler
+internal sealed class UnderstandCodebaseHandler(CodeUnderstandingQueryService queries, IAnalysisService analysisService)
 {
-    private readonly CodeUnderstandingQueryService _queries;
-    private readonly IAnalysisService _analysisService;
-
-    public UnderstandCodebaseHandler(CodeUnderstandingQueryService queries, IAnalysisService analysisService)
-    {
-        _queries = queries;
-        _analysisService = analysisService;
-    }
-
     public async Task<UnderstandCodebaseResult> HandleAsync(UnderstandCodebaseRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
         var profile = request.Profile.NormalizeProfile();
 
-        var (solution, error) = await _queries.GetCurrentSolutionWithAutoBootstrapAsync(
+        var (solution, error) = await queries.GetCurrentSolutionWithAutoBootstrapAsync(
             "Call load_solution first to select a solution before understanding the codebase.",
             null,
             ct).ConfigureAwait(false);
         if (solution == null)
         {
-            return new UnderstandCodebaseResult(
-                profile,
-                Array.Empty<ModuleSummary>(),
-                Array.Empty<HotspotSummary>(),
+            return new UnderstandCodebaseResult(profile, [], [],
                 AgentErrorInfo.Normalize(error, "Call load_solution first to select a solution before understanding the codebase."));
         }
 
@@ -48,7 +36,7 @@ internal sealed class UnderstandCodebaseHandler
             .ThenBy(static m => m.Name, StringComparer.Ordinal)
             .ToArray();
 
-        var metricResult = await _analysisService.GetCodeMetricsAsync(new GetCodeMetricsRequest(), ct).ConfigureAwait(false);
+        var metricResult = await analysisService.GetCodeMetricsAsync(new GetCodeMetricsRequest(), ct).ConfigureAwait(false);
         var hotspotCount = profile switch
         {
             "quick" => 3,
@@ -56,7 +44,7 @@ internal sealed class UnderstandCodebaseHandler
             _ => 5
         };
 
-        var hotspots = await _queries.BuildHotspotsAsync(solution, metricResult.Metrics, hotspotCount, ct).ConfigureAwait(false);
+        var hotspots = await queries.BuildHotspotsAsync(solution, metricResult.Metrics, hotspotCount, ct).ConfigureAwait(false);
         return new UnderstandCodebaseResult(
             profile,
             modules,

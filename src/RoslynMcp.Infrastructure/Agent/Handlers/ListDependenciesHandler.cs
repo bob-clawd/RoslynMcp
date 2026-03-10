@@ -8,43 +8,28 @@ namespace RoslynMcp.Infrastructure.Agent.Handlers;
 /// Lists project dependencies in outgoing, incoming, or both directions.
 /// Returns project metadata and dependency graph edges.
 /// </summary>
-internal sealed class ListDependenciesHandler
+internal sealed class ListDependenciesHandler(CodeUnderstandingQueryService queries)
 {
-    private readonly CodeUnderstandingQueryService _queries;
-
-    public ListDependenciesHandler(CodeUnderstandingQueryService queries)
-    {
-        _queries = queries;
-    }
-
     public async Task<ListDependenciesResult> HandleAsync(ListDependenciesRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var (solution, solutionError) = await _queries.GetCurrentSolutionAsync(
+        var (solution, solutionError) = await queries.GetCurrentSolutionAsync(
             "Call load_solution first to list dependencies.",
             ct).ConfigureAwait(false);
         if (solution == null)
-        {
-            return new ListDependenciesResult(
-                Array.Empty<ProjectDependency>(),
-                0,
-                AgentErrorInfo.Normalize(solutionError, "Call load_solution first to list dependencies."),
-                Array.Empty<ProjectDependencyEdge>());
-        }
+            return new ListDependenciesResult([], 0, AgentErrorInfo.Normalize(solutionError, "Call load_solution first to list dependencies."), []);
 
         if (!request.Direction.TryNormalizeDependencyDirection(out var direction))
         {
-            return new ListDependenciesResult(
-                Array.Empty<ProjectDependency>(),
-                0,
+            return new ListDependenciesResult([], 0,
                 AgentErrorInfo.Create(
                     ErrorCodes.InvalidInput,
                     $"direction '{request.Direction}' is not valid.",
                     "Use 'outgoing', 'incoming', or 'both'.",
                     ("field", "direction"),
                     ("provided", request.Direction ?? string.Empty)),
-                Array.Empty<ProjectDependencyEdge>());
+                []);
         }
 
         var hasProjectPath = !string.IsNullOrWhiteSpace(request.ProjectPath);
@@ -54,29 +39,25 @@ internal sealed class ListDependenciesHandler
 
         if (selectorCount == 0)
         {
-            return new ListDependenciesResult(
-                Array.Empty<ProjectDependency>(),
-                0,
+            return new ListDependenciesResult([], 0,
                 AgentErrorInfo.Create(
                     ErrorCodes.InvalidInput,
                     "A project selector is required. Provide exactly one of projectPath, projectName, or projectId.",
                     "Call list_dependencies with one selector from load_solution results.",
                     ("field", "project selector"),
                     ("expected", "projectPath|projectName|projectId")),
-                Array.Empty<ProjectDependencyEdge>());
+                []);
         }
 
         if (selectorCount > 1)
         {
-            return new ListDependenciesResult(
-                Array.Empty<ProjectDependency>(),
-                0,
+            return new ListDependenciesResult([], 0,
                 AgentErrorInfo.Create(
                     ErrorCodes.InvalidInput,
                     "Multiple project selectors provided. Provide exactly one of projectPath, projectName, or projectId.",
                     "Specify only one selector to identify the target project.",
                     ("selectors", $"projectPath:{hasProjectPath}, projectName:{hasProjectName}, projectId:{hasProjectId}")),
-                Array.Empty<ProjectDependencyEdge>());
+                []);
         }
 
         var normalizedProjectName = request.ProjectName.NormalizeOptional();
@@ -87,9 +68,7 @@ internal sealed class ListDependenciesHandler
                 .ToArray();
             if (matchingByName.Length > 1)
             {
-                return new ListDependenciesResult(
-                    Array.Empty<ProjectDependency>(),
-                    0,
+                return new ListDependenciesResult([], 0,
                     AgentErrorInfo.Create(
                         ErrorCodes.AmbiguousSymbol,
                         $"projectName '{request.ProjectName}' matched {matchingByName.Length} projects.",
@@ -97,7 +76,7 @@ internal sealed class ListDependenciesHandler
                         ("field", "projectName"),
                         ("provided", normalizedProjectName),
                         ("matchingCount", matchingByName.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))),
-                    Array.Empty<ProjectDependencyEdge>());
+                    []);
             }
         }
 
@@ -110,13 +89,7 @@ internal sealed class ListDependenciesHandler
             out var selectorError);
 
         if (selectorError != null)
-        {
-            return new ListDependenciesResult(
-                Array.Empty<ProjectDependency>(),
-                0,
-                selectorError,
-                Array.Empty<ProjectDependencyEdge>());
-        }
+            return new ListDependenciesResult([], 0, selectorError, []);
 
         var targetProject = selectedProjects[0];
         var edgeByKey = new Dictionary<string, ProjectDependencyEdge>(StringComparer.Ordinal);
