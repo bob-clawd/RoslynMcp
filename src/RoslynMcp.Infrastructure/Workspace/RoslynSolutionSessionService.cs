@@ -140,7 +140,8 @@ public sealed class RoslynSolutionSessionService : ISolutionSessionService, IRos
                 return (false, (ErrorInfo?)new ErrorInfo(ErrorCodes.InternalError, "Failed to apply changes to the current solution."));
             }
 
-            snapshot.CurrentSession.UpdateSolution(solution);
+            var appliedSolution = snapshot.CurrentSession.Workspace.CurrentSolution;
+            snapshot.CurrentSession.UpdateSolution(appliedSolution);
             snapshot.Update(snapshot.CurrentSession, snapshot.WorkspaceRootHint, snapshot.WorkspaceVersion + 1);
             return (true, (ErrorInfo?)null);
         }, ct).ConfigureAwait(false);

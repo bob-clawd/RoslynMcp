@@ -53,6 +53,66 @@ public sealed class ReplaceMethodToolTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithGenericReturnType_ReplacesMethod()
+    {
+        await using var context = await CreateContextAsync();
+        var sut = GetSut(context);
+        var filePath = context.GetFilePath("ProjectApp", "MethodMutationTestTarget");
+        var targetMethodSymbolId = await ResolveMethodSymbolIdAsync(context, filePath, 5, 19);
+
+        var result = await sut.ExecuteAsync(
+            CancellationToken.None,
+            targetMethodSymbolId,
+            "AssessAsync",
+            "Task<int>",
+            "public",
+            Array.Empty<string>(),
+            ["int priority"],
+            "return Task.FromResult(priority);");
+
+        result.Error.ShouldBeNone();
+        result.Status.Is("applied");
+        result.ReplacedMethod.IsNotNull();
+        result.DiagnosticsDelta.NewErrors.IsEmpty();
+        result.DiagnosticsDelta.NewWarnings.IsEmpty();
+
+        var text = await File.ReadAllTextAsync(filePath);
+        text.Contains("public Task<int> AssessAsync(int priority)", StringComparison.Ordinal).IsTrue();
+        text.Contains("return Task.FromResult(priority);", StringComparison.Ordinal).IsTrue();
+        text.Contains("public string Evaluate", StringComparison.Ordinal).IsFalse();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithEscapedGenericTypeSyntax_ReplacesMethod()
+    {
+        await using var context = await CreateContextAsync();
+        var sut = GetSut(context);
+        var filePath = context.GetFilePath("ProjectApp", "MethodMutationTestTarget");
+        var targetMethodSymbolId = await ResolveMethodSymbolIdAsync(context, filePath, 5, 19);
+
+        var result = await sut.ExecuteAsync(
+            CancellationToken.None,
+            targetMethodSymbolId,
+            "AssessEscapedAsync",
+            "Task&lt;int&gt;",
+            "public",
+            Array.Empty<string>(),
+            ["Task&lt;int&gt; task"],
+            "return task;");
+
+        result.Error.ShouldBeNone();
+        result.Status.Is("applied");
+        result.ReplacedMethod.IsNotNull();
+        result.DiagnosticsDelta.NewErrors.IsEmpty();
+        result.DiagnosticsDelta.NewWarnings.IsEmpty();
+
+        var text = await File.ReadAllTextAsync(filePath);
+        text.Contains("public Task<int> AssessEscapedAsync(Task<int> task)", StringComparison.Ordinal).IsTrue();
+        text.Contains("return task;", StringComparison.Ordinal).IsTrue();
+        text.Contains("public string Evaluate", StringComparison.Ordinal).IsFalse();
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WithUnknownTargetSymbolId_ReturnsSymbolNotFoundWithoutChanges()
     {
         await using var context = await CreateContextAsync();

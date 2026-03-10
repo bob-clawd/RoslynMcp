@@ -45,6 +45,64 @@ public sealed class AddMethodToolTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithGenericReturnType_AddsMethod()
+    {
+        await using var context = await CreateContextAsync();
+        var sut = GetSut(context);
+        var targetTypeSymbolId = await ResolveMethodMutationTestTargetAsync(context);
+        var filePath = context.GetFilePath("ProjectApp", "MethodMutationTestTarget");
+
+        var result = await sut.ExecuteAsync(
+            CancellationToken.None,
+            targetTypeSymbolId,
+            "PlanAsync",
+            "Task<int>",
+            "public",
+            Array.Empty<string>(),
+            ["int priority"],
+            "return Task.FromResult(priority);");
+
+        result.Error.ShouldBeNone();
+        result.Status.Is("applied");
+        result.AddedMethod.IsNotNull();
+        result.DiagnosticsDelta.NewErrors.IsEmpty();
+        result.DiagnosticsDelta.NewWarnings.IsEmpty();
+
+        var text = await File.ReadAllTextAsync(filePath);
+        text.Contains("public Task<int> PlanAsync(int priority)", StringComparison.Ordinal).IsTrue();
+        text.Contains("return Task.FromResult(priority);", StringComparison.Ordinal).IsTrue();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithEscapedGenericTypeSyntax_AddsMethod()
+    {
+        await using var context = await CreateContextAsync();
+        var sut = GetSut(context);
+        var targetTypeSymbolId = await ResolveMethodMutationTestTargetAsync(context);
+        var filePath = context.GetFilePath("ProjectApp", "MethodMutationTestTarget");
+
+        var result = await sut.ExecuteAsync(
+            CancellationToken.None,
+            targetTypeSymbolId,
+            "PlanEscapedAsync",
+            "Task&lt;int&gt;",
+            "public",
+            Array.Empty<string>(),
+            ["Task&lt;int&gt; task"],
+            "return task;");
+
+        result.Error.ShouldBeNone();
+        result.Status.Is("applied");
+        result.AddedMethod.IsNotNull();
+        result.DiagnosticsDelta.NewErrors.IsEmpty();
+        result.DiagnosticsDelta.NewWarnings.IsEmpty();
+
+        var text = await File.ReadAllTextAsync(filePath);
+        text.Contains("public Task<int> PlanEscapedAsync(Task<int> task)", StringComparison.Ordinal).IsTrue();
+        text.Contains("return task;", StringComparison.Ordinal).IsTrue();
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WithEquivalentExistingMethod_ReturnsConflictWithoutChanges()
     {
         await using var context = await CreateContextAsync();

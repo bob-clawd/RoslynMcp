@@ -148,7 +148,7 @@ public static class ToolContractMapperExtensions
                 NormalizeSymbolId(solutionHintPath),
                 new MethodInsertionSpec(
                     NormalizeString(name),
-                    NormalizeString(returnType),
+                    NormalizeString(returnType).NormalizeEscapedTypeSyntax(),
                     NormalizeString(accessibility),
                     NormalizeOptionalStrings(modifiers) ?? Array.Empty<string>(),
                     ParseMethodParameters(parameters),
@@ -168,7 +168,7 @@ public static class ToolContractMapperExtensions
                 NormalizeSymbolId(solutionHintPath),
                 new MethodInsertionSpec(
                     NormalizeString(name),
-                    NormalizeString(returnType),
+                    NormalizeString(returnType).NormalizeEscapedTypeSyntax(),
                     NormalizeString(accessibility),
                     NormalizeOptionalStrings(modifiers) ?? Array.Empty<string>(),
                     ParseMethodParameters(parameters),
@@ -230,7 +230,7 @@ public static class ToolContractMapperExtensions
                 continue;
             }
 
-            var type = parameter[..separatorIndex].Trim();
+            var type = parameter[..separatorIndex].Trim().NormalizeEscapedTypeSyntax();
             var name = parameter[(separatorIndex + 1)..].Trim();
             results.Add(new MethodParameterSpec(name, type));
         }

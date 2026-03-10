@@ -94,6 +94,43 @@ public sealed class ReplaceMethodBodyToolTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task ExecuteAsync_AfterAddMethodInSameSession_ReplacesBodyWithoutApplyFailure()
+    {
+        await using var context = await CreateContextAsync();
+        var replaceMethodBodyTool = GetSut(context);
+        var addMethodTool = context.GetRequiredService<AddMethodTool>();
+        var targetTypeSymbolId = await ResolveMethodMutationTestTargetAsync(context);
+        var filePath = context.GetFilePath("ProjectApp", "MethodMutationTestTarget");
+        var targetMethodSymbolId = await ResolveMethodSymbolIdAsync(context, filePath, 5, 19);
+
+        var addResult = await addMethodTool.ExecuteAsync(
+            CancellationToken.None,
+            targetTypeSymbolId,
+            "Plan",
+            "string",
+            "public",
+            Array.Empty<string>(),
+            ["string input", "int priority", "bool isEnabled"],
+            "return string.Empty;");
+
+        addResult.Error.ShouldBeNone();
+        addResult.Status.Is("applied");
+
+        var replaceResult = await replaceMethodBodyTool.ExecuteAsync(
+            CancellationToken.None,
+            targetMethodSymbolId,
+            "return input + \"-updated\";");
+
+        replaceResult.Error.ShouldBeNone();
+        replaceResult.Status.Is("applied");
+        replaceResult.ReplacedMethodBody.IsNotNull();
+
+        var text = await File.ReadAllTextAsync(filePath);
+        text.Contains("public string Plan(string input, int priority, bool isEnabled)", StringComparison.Ordinal).IsTrue();
+        text.Contains("return input + \"-updated\";", StringComparison.Ordinal).IsTrue();
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WithMetadataMethod_ReturnsTargetNotSourceEditable()
     {
         await using var context = await CreateContextAsync();
@@ -113,6 +150,19 @@ public sealed class ReplaceMethodBodyToolTests(ITestOutputHelper output)
     {
         var resolver = context.GetRequiredService<ResolveSymbolTool>();
         var resolved = await resolver.ExecuteAsync(CancellationToken.None, path: path, line: line, column: column);
+
+        resolved.Error.ShouldBeNone();
+        resolved.Symbol.IsNotNull();
+        return resolved.Symbol!.SymbolId;
+    }
+
+    private static async Task<string> ResolveMethodMutationTestTargetAsync(IsolatedSandboxContext context)
+    {
+        var resolver = context.GetRequiredService<ResolveSymbolTool>();
+        var resolved = await resolver.ExecuteAsync(
+            CancellationToken.None,
+            qualifiedName: "ProjectApp.MethodMutationTestTarget",
+            projectName: "ProjectApp");
 
         resolved.Error.ShouldBeNone();
         resolved.Symbol.IsNotNull();
