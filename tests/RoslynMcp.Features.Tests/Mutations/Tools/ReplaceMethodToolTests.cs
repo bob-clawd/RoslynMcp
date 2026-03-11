@@ -33,8 +33,9 @@ public sealed class ReplaceMethodToolTests(ITestOutputHelper output)
         result.Status.Is("applied");
         result.ChangedFiles.Count.Is(1);
         result.ReplacedMethod.IsNotNull();
+        result.TargetMethodSymbolId.ShouldBeExternalSymbolId();
         result.ReplacedMethod!.OriginalSymbolId.Is(targetMethodSymbolId);
-        result.ReplacedMethod.NewSymbolId.ShouldNotBeEmpty();
+        result.ReplacedMethod.NewSymbolId.ShouldBeExternalSymbolId();
         string.Equals(result.ReplacedMethod.NewSymbolId, targetMethodSymbolId, StringComparison.Ordinal).IsFalse();
         result.ReplacedMethod.NewSignature.Contains("Assess", StringComparison.Ordinal).IsTrue();
         result.DiagnosticsDelta.NewErrors.IsEmpty();

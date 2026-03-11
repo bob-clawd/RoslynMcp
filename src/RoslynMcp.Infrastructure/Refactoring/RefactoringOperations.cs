@@ -1,6 +1,7 @@
 using RoslynMcp.Core;
 using RoslynMcp.Core.Contracts;
 using RoslynMcp.Core.Models;
+using RoslynMcp.Infrastructure.Agent;
 using Microsoft.CodeAnalysis.Rename;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
@@ -693,6 +694,9 @@ internal sealed class RenameOperations
 
         ct.ThrowIfCancellationRequested();
 
+        var symbolInternalId = RefactoringOperationOrchestrator.NormalizeInputSymbolId(request.SymbolId) ?? request.SymbolId;
+        var symbolId = symbolInternalId.NormalizeAcceptedSymbolIdForOutput();
+
         var invalidInputError = RefactoringOperationExtensions.TryCreateInvalidSymbolIdError(request.SymbolId, "rename-symbol");
         if (invalidInputError != null)
             return RefactoringOperationExtensions.CreateErrorResult(invalidInputError);
@@ -717,8 +721,8 @@ internal sealed class RenameOperations
             if (symbol == null)
             {
                 return RefactoringOperationExtensions.CreateErrorResult(ErrorCodes.SymbolNotFound,
-                    $"Symbol '{request.SymbolId}' could not be resolved.",
-                    ("symbolId", request.SymbolId),
+                    $"Symbol '{symbolId}' could not be resolved.",
+                    ("symbolId", symbolId),
                     ("operation", "rename-symbol"));
             }
 
@@ -734,7 +738,7 @@ internal sealed class RenameOperations
             {
                 return RefactoringOperationExtensions.CreateErrorResult(ErrorCodes.RenameConflict,
                     $"Renaming '{symbol.Name}' to '{request.NewName}' would conflict with an existing symbol.",
-                    ("symbolId", request.SymbolId),
+                    ("symbolId", symbolId),
                     ("newName", request.NewName),
                     ("operation", "rename-symbol"));
             }
@@ -755,10 +759,6 @@ internal sealed class RenameOperations
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToList();
-            var renamedSymbol = await _owner.TryResolveRenamedSymbolAsync(renamedSolution, request.NewName, declarationKeys, ct)
-                .ConfigureAwait(false);
-            var renamedSymbolId = renamedSymbol != null ? RefactoringSymbolIdentity.CreateId(renamedSymbol) : RefactoringSymbolIdentity.CreateId(symbol);
-
             var (applied, applyError) = await _owner._solutionAccessor.TryApplySolutionAsync(renamedSolution, ct).ConfigureAwait(false);
             if (!applied)
             {
@@ -774,10 +774,16 @@ internal sealed class RenameOperations
                 return RefactoringOperationExtensions.CreateErrorResult(applyError ??
                     RefactoringOperationExtensions.CreateError(ErrorCodes.InternalError,
                         "Failed to update the active solution after rename.",
-                        ("symbolId", request.SymbolId),
+                        ("symbolId", symbolId),
                         ("newName", request.NewName),
                         ("operation", "rename-symbol")));
             }
+
+            var renamedSymbol = await _owner.TryResolveRenamedSymbolAsync(renamedSolution, request.NewName, declarationKeys, ct)
+                .ConfigureAwait(false);
+            var renamedSymbolInternalId = renamedSymbol != null ? RefactoringSymbolIdentity.CreateId(renamedSymbol) : RefactoringSymbolIdentity.CreateId(symbol);
+            symbolInternalId.Update(renamedSymbolInternalId);
+            var renamedSymbolId = symbolId;
 
             return new RenameSymbolResult(
                 renamedSymbolId,
@@ -794,9 +800,9 @@ internal sealed class RenameOperations
         }
         catch (InvalidOperationException ex)
         {
-            return RefactoringOperationExtensions.CreateErrorResult(ErrorCodes.RenameConflict,
+                return RefactoringOperationExtensions.CreateErrorResult(ErrorCodes.RenameConflict,
                 $"Rename conflict: {ex.Message}",
-                ("symbolId", request.SymbolId),
+                ("symbolId", symbolId),
                 ("newName", request.NewName),
                 ("operation", "rename-symbol"));
         }
@@ -809,7 +815,7 @@ internal sealed class RenameOperations
             _owner._logger.LogError(ex, "RenameSymbol failed for {SymbolId}", request.SymbolId);
             return RefactoringOperationExtensions.CreateErrorResult(ErrorCodes.InternalError,
                 $"Failed to rename symbol '{request.SymbolId}': {ex.Message}",
-                ("symbolId", request.SymbolId),
+                ("symbolId", symbolId),
                 ("newName", request.NewName),
                 ("operation", "rename-symbol"));
         }

@@ -282,6 +282,7 @@ file static class AssertionExtensions
             result.Error.ShouldBeNone();
             result.TotalCount.Is(expectedTotalCount);
             result.Types.Select(static type => type.DisplayName).Is(expectedDisplayNames);
+            result.Types.Select(static type => type.SymbolId).ToList().ForEach(static symbolId => symbolId.ShouldBeExternalSymbolId());
         }
 
         internal void ShouldHaveError(string expectedCode, string expectedMessage)

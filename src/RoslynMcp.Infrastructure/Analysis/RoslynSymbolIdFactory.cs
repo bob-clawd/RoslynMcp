@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
+using RoslynMcp.Infrastructure.Agent;
 using System.Reflection;
 
 namespace RoslynMcp.Infrastructure.Analysis;
@@ -29,8 +30,8 @@ internal sealed class RoslynSymbolIdFactory : IRoslynSymbolIdFactory
         var result = (string?)CreateString.Invoke(null, [resolved, CancellationToken.None]);
 
         if (!string.IsNullOrEmpty(result))
-            return result;
+            return result.ToExternal();
 
-        return resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        return resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat).ToExternal();
     }
 }

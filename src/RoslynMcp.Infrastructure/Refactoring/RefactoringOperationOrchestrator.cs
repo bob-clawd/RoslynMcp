@@ -1,5 +1,6 @@
 using RoslynMcp.Core;
 using RoslynMcp.Core.Models;
+using RoslynMcp.Infrastructure.Agent;
 using RoslynMcp.Infrastructure.Workspace;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -262,7 +263,8 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
 
     internal async Task<ISymbol?> ResolveSymbolAsync(string symbolId, Solution solution, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(symbolId))
+        var normalizedSymbolId = NormalizeInputSymbolId(symbolId);
+        if (string.IsNullOrWhiteSpace(normalizedSymbolId))
         {
             return null;
         }
@@ -276,7 +278,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
                 continue;
             }
 
-            var resolved = RefactoringSymbolIdentity.Resolve(symbolId, compilation, ct);
+            var resolved = RefactoringSymbolIdentity.Resolve(normalizedSymbolId, compilation, ct);
             if (resolved != null)
             {
                 return resolved.OriginalDefinition ?? resolved;
@@ -284,6 +286,16 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
         }
 
         return null;
+    }
+
+    internal static string? NormalizeInputSymbolId(string? symbolId)
+    {
+        if (string.IsNullOrWhiteSpace(symbolId))
+        {
+            return null;
+        }
+
+        return symbolId.TryToInternal(out var internalSymbolId) ? internalSymbolId : symbolId;
     }
 
     internal async Task<ISymbol?> TryResolveRenamedSymbolAsync(Solution solution,

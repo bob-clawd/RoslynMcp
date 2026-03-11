@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
 using RoslynMcp.Core.Models;
+using RoslynMcp.Infrastructure.Agent;
 using System.Collections.Immutable;
 using System.Text;
 
@@ -734,6 +735,29 @@ internal static class RefactoringOperationExtensions
             ("parameter", "targetMethodSymbolId"),
             ("operation", operation));
     }
+
+    public static string NormalizeAcceptedSymbolIdForOutput(this string symbolId)
+    {
+        if (string.IsNullOrWhiteSpace(symbolId))
+        {
+            return string.Empty;
+        }
+
+        if (symbolId.TryToInternal(out _))
+        {
+            return symbolId;
+        }
+
+        if (!LooksLikeInternalSymbolId(symbolId))
+        {
+            return symbolId;
+        }
+
+        return symbolId.ToExternal();
+    }
+
+    private static bool LooksLikeInternalSymbolId(string symbolId)
+        => symbolId.IndexOfAny([' ', ':', ';', ',', '(', ')', '<', '>', '[', ']', '{', '}', '|']) >= 0;
 
     public static PreviewCodeFixResult CreatePreviewError(string code, string message)
         => CreatePreviewError(CreateError(code, message, ("operation", "preview_code_fix")));

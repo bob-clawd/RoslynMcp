@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using RoslynMcp.Core;
 using RoslynMcp.Core.Models;
+using RoslynMcp.Infrastructure.Agent;
 
 namespace RoslynMcp.Infrastructure.Refactoring;
 
@@ -25,6 +26,10 @@ internal sealed class ReplaceMethodBodyOperations
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
 
+        var targetInternalSymbolId = RefactoringOperationOrchestrator.NormalizeInputSymbolId(request.TargetMethodSymbolId)
+            ?? request.TargetMethodSymbolId;
+        var targetMethodSymbolId = targetInternalSymbolId.NormalizeAcceptedSymbolIdForOutput();
+
         var validationError = request.ValidateReplaceMethodBody();
         if (validationError != null)
         {
@@ -36,38 +41,38 @@ internal sealed class ReplaceMethodBodyOperations
             var (solution, version, error) = await _owner.TryGetSolutionWithVersionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return RefactoringOperationExtensions.CreateReplaceMethodBodyErrorResult(request.TargetMethodSymbolId, error);
+                return RefactoringOperationExtensions.CreateReplaceMethodBodyErrorResult(targetMethodSymbolId, error);
             }
 
             var (target, resolveError) = await _targetResolver.ResolveMethodAsync(request.TargetMethodSymbolId, solution, "replace_method_body", ct).ConfigureAwait(false);
             if (target == null)
             {
-                return RefactoringOperationExtensions.CreateReplaceMethodBodyErrorResult(request.TargetMethodSymbolId, resolveError);
+                return RefactoringOperationExtensions.CreateReplaceMethodBodyErrorResult(targetMethodSymbolId, resolveError);
             }
 
             if (target.Declaration.Body == null || target.Declaration.ExpressionBody != null)
             {
                 return RefactoringOperationExtensions.CreateReplaceMethodBodyErrorResult(
-                    request.TargetMethodSymbolId,
+                    targetMethodSymbolId,
                     ErrorCodes.TargetNotSourceEditable,
                     "replace_method_body currently supports only existing block-bodied methods.",
-                    ("targetMethodSymbolId", request.TargetMethodSymbolId),
+                    ("targetMethodSymbolId", targetMethodSymbolId),
                     ("operation", "replace_method_body"));
             }
 
             if (!_builder.TryParseBody(request.Body, out var bodyBlock, out var bodyError) || bodyBlock == null)
             {
-                return RefactoringOperationExtensions.CreateReplaceMethodBodyErrorResult(request.TargetMethodSymbolId, bodyError);
+                return RefactoringOperationExtensions.CreateReplaceMethodBodyErrorResult(targetMethodSymbolId, bodyError);
             }
 
             var root = await target.Document.GetSyntaxRootAsync(ct).ConfigureAwait(false);
             if (root == null)
             {
                 return RefactoringOperationExtensions.CreateReplaceMethodBodyErrorResult(
-                    request.TargetMethodSymbolId,
+                    targetMethodSymbolId,
                     ErrorCodes.InternalError,
                     "Failed to load the target document syntax tree.",
-                    ("targetMethodSymbolId", request.TargetMethodSymbolId),
+                    ("targetMethodSymbolId", targetMethodSymbolId),
                     ("operation", "replace_method_body"));
             }
 
@@ -84,26 +89,10 @@ internal sealed class ReplaceMethodBodyOperations
                 .GetDeltaAsync(solution, updatedSolution, target.Document.Id, ct)
                 .ConfigureAwait(false);
 
-            var resolvedMethod = await _owner.ResolveSymbolAsync(request.TargetMethodSymbolId, updatedSolution, ct).ConfigureAwait(false) as IMethodSymbol;
-            if (resolvedMethod == null)
-            {
-                return new ReplaceMethodBodyResult(
-                    "failed",
-                    changedFiles,
-                    request.TargetMethodSymbolId,
-                    null,
-                    diagnosticsDelta,
-                    RefactoringOperationExtensions.CreateError(
-                        ErrorCodes.CreatedSymbolUnresolved,
-                        "The method could not be resolved after replacing its body.",
-                        ("targetMethodSymbolId", request.TargetMethodSymbolId),
-                        ("operation", "replace_method_body")));
-            }
-
             var (applyVersion, versionError) = await _owner._solutionAccessor.GetWorkspaceVersionAsync(ct).ConfigureAwait(false);
             if (versionError != null)
             {
-                return RefactoringOperationExtensions.CreateReplaceMethodBodyErrorResult(request.TargetMethodSymbolId, versionError);
+                return RefactoringOperationExtensions.CreateReplaceMethodBodyErrorResult(targetMethodSymbolId, versionError);
             }
 
             if (applyVersion != version)
@@ -111,13 +100,13 @@ internal sealed class ReplaceMethodBodyOperations
                 return new ReplaceMethodBodyResult(
                     "failed",
                     Array.Empty<string>(),
-                    request.TargetMethodSymbolId,
+                    targetMethodSymbolId,
                     null,
                     new DiagnosticsDeltaInfo(Array.Empty<MutationDiagnosticInfo>(), Array.Empty<MutationDiagnosticInfo>()),
                     RefactoringOperationExtensions.CreateError(
                         ErrorCodes.WorkspaceChanged,
                         "Workspace changed during replace_method_body execution.",
-                        ("targetMethodSymbolId", request.TargetMethodSymbolId),
+                        ("targetMethodSymbolId", targetMethodSymbolId),
                         ("operation", "replace_method_body")));
             }
 
@@ -127,22 +116,41 @@ internal sealed class ReplaceMethodBodyOperations
                 return new ReplaceMethodBodyResult(
                     "failed",
                     changedFiles,
-                    request.TargetMethodSymbolId,
+                    targetMethodSymbolId,
                     null,
                     diagnosticsDelta,
                     applyError ?? RefactoringOperationExtensions.CreateError(
                         ErrorCodes.InternalError,
                         "Failed to apply replace_method_body changes.",
-                        ("targetMethodSymbolId", request.TargetMethodSymbolId),
+                        ("targetMethodSymbolId", targetMethodSymbolId),
                         ("operation", "replace_method_body")));
             }
+
+            var resolvedMethod = await _owner.ResolveSymbolAsync(request.TargetMethodSymbolId, updatedSolution, ct).ConfigureAwait(false) as IMethodSymbol;
+            if (resolvedMethod == null)
+            {
+                return new ReplaceMethodBodyResult(
+                    "failed",
+                    changedFiles,
+                    targetMethodSymbolId,
+                    null,
+                    diagnosticsDelta,
+                    RefactoringOperationExtensions.CreateError(
+                        ErrorCodes.CreatedSymbolUnresolved,
+                        "The method could not be resolved after replacing its body.",
+                        ("targetMethodSymbolId", targetMethodSymbolId),
+                        ("operation", "replace_method_body")));
+            }
+
+            var resolvedMethodInternalId = RefactoringSymbolIdentity.CreateId(resolvedMethod);
+            targetInternalSymbolId.Update(resolvedMethodInternalId);
 
             return new ReplaceMethodBodyResult(
                 "applied",
                 changedFiles,
-                request.TargetMethodSymbolId,
+                targetMethodSymbolId,
                 new ReplacedMethodBodyInfo(
-                    RefactoringSymbolIdentity.CreateId(resolvedMethod),
+                    targetMethodSymbolId,
                     resolvedMethod.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)),
                 diagnosticsDelta);
         }
@@ -154,10 +162,10 @@ internal sealed class ReplaceMethodBodyOperations
         {
             _owner._logger.LogError(ex, "ReplaceMethodBody failed for {TargetMethodSymbolId}", request.TargetMethodSymbolId);
             return RefactoringOperationExtensions.CreateReplaceMethodBodyErrorResult(
-                request.TargetMethodSymbolId,
+                targetMethodSymbolId,
                 ErrorCodes.InternalError,
                 $"Failed to replace method body '{request.TargetMethodSymbolId}': {ex.Message}",
-                ("targetMethodSymbolId", request.TargetMethodSymbolId),
+                ("targetMethodSymbolId", targetMethodSymbolId),
                 ("operation", "replace_method_body"));
         }
     }

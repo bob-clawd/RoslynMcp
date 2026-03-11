@@ -1,6 +1,7 @@
 using RoslynMcp.Core.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
+using RoslynMcp.Infrastructure.Agent;
 
 namespace RoslynMcp.Infrastructure.Navigation;
 
@@ -12,7 +13,8 @@ internal sealed class SymbolLookupService : ISymbolLookupService
 {
     public async Task<ISymbol?> ResolveSymbolAsync(string symbolId, Solution solution, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(symbolId))
+        var normalizedSymbolId = NormalizeInputSymbolId(symbolId);
+        if (string.IsNullOrWhiteSpace(normalizedSymbolId))
         {
             return null;
         }
@@ -26,7 +28,7 @@ internal sealed class SymbolLookupService : ISymbolLookupService
                 continue;
             }
 
-            var resolved = SymbolIdentity.Resolve(symbolId, compilation, ct);
+            var resolved = SymbolIdentity.Resolve(normalizedSymbolId, compilation, ct);
             if (resolved != null)
             {
                 return resolved.OriginalDefinition ?? resolved;
@@ -38,7 +40,8 @@ internal sealed class SymbolLookupService : ISymbolLookupService
 
     public async Task<(ISymbol? Symbol, Project? OwnerProject)> ResolveSymbolWithProjectAsync(string symbolId, Solution solution, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(symbolId))
+        var normalizedSymbolId = NormalizeInputSymbolId(symbolId);
+        if (string.IsNullOrWhiteSpace(normalizedSymbolId))
         {
             return (null, null);
         }
@@ -52,7 +55,7 @@ internal sealed class SymbolLookupService : ISymbolLookupService
                 continue;
             }
 
-            var resolved = SymbolIdentity.Resolve(symbolId, compilation, ct);
+            var resolved = SymbolIdentity.Resolve(normalizedSymbolId, compilation, ct);
             if (resolved != null)
             {
                 return (resolved.OriginalDefinition ?? resolved, project);
@@ -278,4 +281,14 @@ internal sealed class SymbolLookupService : ISymbolLookupService
     private static bool MatchesAccessibility(ISymbol symbol, string? accessibility)
         => string.IsNullOrWhiteSpace(accessibility) ||
            string.Equals(symbol.DeclaredAccessibility.ToString(), accessibility, StringComparison.OrdinalIgnoreCase);
+
+    private static string? NormalizeInputSymbolId(string? symbolId)
+    {
+        if (string.IsNullOrWhiteSpace(symbolId))
+        {
+            return null;
+        }
+
+        return symbolId.TryToInternal(out var internalSymbolId) ? internalSymbolId : symbolId;
+    }
 }

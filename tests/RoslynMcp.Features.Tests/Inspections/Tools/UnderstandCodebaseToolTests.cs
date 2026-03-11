@@ -18,6 +18,7 @@ public sealed class UnderstandCodebaseToolTests(SharedSandboxFixture fixture, IT
         result.Profile.Is("quick");
         result.Modules.Select(static module => module.Name).Is("ProjectApp", "ProjectCore", "ProjectImpl");
         result.Hotspots.Count.Is(3);
+        result.Hotspots.Select(static hotspot => hotspot.SymbolId).ToList().ForEach(static symbolId => symbolId.ShouldBeExternalSymbolId());
         result.Hotspots.All(static hotspot => !hotspot.FilePath.Contains("/obj/", StringComparison.OrdinalIgnoreCase) && !hotspot.FilePath.Contains("\\obj\\", StringComparison.OrdinalIgnoreCase)).IsTrue();
     }
 

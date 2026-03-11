@@ -218,7 +218,7 @@ file static class AssertionExtensions
                 actual[i].IsStatic.Is(expected[i].IsStatic);
                 actual[i].FilePath.ShouldEndWithPathSuffix(expected[i].FileName);
                 actual[i].Line.Is(expected[i].Line);
-                actual[i].SymbolId.ShouldNotBeEmpty();
+                actual[i].SymbolId.ShouldBeExternalSymbolId();
                 actual[i].Reference.IsNotNull();
                 actual[i].Reference!.SymbolId.Is(actual[i].SymbolId);
             }

@@ -394,8 +394,9 @@ public static partial class CodeUnderstandingExtensions
         public SymbolReference ToSymbolReference()
         {
             var (filePath, line, column) = symbol.GetDeclarationPosition();
+            var internalSymbolId = SymbolIdentity.CreateId(symbol);
             return new SymbolReference(
-                SymbolIdentity.CreateId(symbol),
+                internalSymbolId.ToExternal(),
                 symbol.ToReadableHandle(),
                 symbol.ToQualifiedDisplayName(),
                 CreateOptionalSourceLocation(filePath, line, column));

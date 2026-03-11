@@ -34,7 +34,8 @@ public sealed class AddMethodToolTests(ITestOutputHelper output)
         result.ChangedFiles.Count.Is(1);
         result.ChangedFiles[0].ShouldEndWithPathSuffix(Path.Combine("ProjectApp", "MethodMutationTestTarget.cs"));
         result.AddedMethod.IsNotNull();
-        result.AddedMethod!.SymbolId.ShouldNotBeEmpty();
+        result.TargetTypeSymbolId.ShouldBeExternalSymbolId();
+        result.AddedMethod!.SymbolId.ShouldBeExternalSymbolId();
         result.AddedMethod.Signature.Contains("Plan", StringComparison.Ordinal).IsTrue();
         result.DiagnosticsDelta.NewErrors.IsEmpty();
         result.DiagnosticsDelta.NewWarnings.IsEmpty();

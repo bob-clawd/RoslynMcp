@@ -26,6 +26,7 @@ public sealed class DeleteMethodToolTests(ITestOutputHelper output)
         result.ChangedFiles.Count.Is(1);
         result.ChangedFiles[0].ShouldEndWithPathSuffix(Path.Combine("ProjectApp", "MethodMutationTestTarget.cs"));
         result.DeletedMethod.IsNotNull();
+        result.TargetMethodSymbolId.ShouldBeExternalSymbolId();
         result.DeletedMethod!.SymbolId.Is(targetMethodSymbolId);
         result.DeletedMethod.Signature.Contains("Evaluate", StringComparison.Ordinal).IsTrue();
         result.DiagnosticsDelta.NewErrors.IsEmpty();

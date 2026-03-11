@@ -40,6 +40,8 @@ public sealed class TraceCallFlowToolTests(SharedSandboxFixture fixture, ITestOu
         result.Edges.AssertEdge(stop.Symbol.SymbolId, changeState.Symbol.SymbolId, Path.Combine("ProjectImpl", "ProcessingSession.Lifecycle.cs"), 14);
 
         var directEdge = result.Edges.GetEdge(runAsync.Symbol.SymbolId, startAsync.Symbol.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 20);
+        directEdge.FromSymbolId.ShouldBeExternalSymbolId();
+        directEdge.ToSymbolId.ShouldBeExternalSymbolId();
         directEdge.EvidenceKind.Is(FlowEvidenceKinds.DirectStatic);
         directEdge.Uncertainties.IsNotNull();
         var directUncertainties = directEdge.Uncertainties!;

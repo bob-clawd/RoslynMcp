@@ -1,10 +1,14 @@
 using Is.Assertions;
 using RoslynMcp.Core.Models;
+using System.Text.RegularExpressions;
 
 namespace RoslynMcp.Features.Tests;
 
-public static class AssertionsExtensions
+public static partial class AssertionsExtensions
 {
+    [GeneratedRegex(@"^S\+\d{4,}$", RegexOptions.CultureInvariant)]
+    private static partial Regex ExternalSymbolIdPattern();
+    
     extension(string actualPath)
     {
         internal bool HasPathSuffix(string expectedPathSuffix)
@@ -21,6 +25,12 @@ public static class AssertionsExtensions
     internal static void ShouldNotBeEmpty(this string text)
     {
         string.IsNullOrEmpty(text).IsFalse();
+    }
+
+    internal static void ShouldBeExternalSymbolId(this string symbolId)
+    {
+        symbolId.ShouldNotBeEmpty();
+        ExternalSymbolIdPattern().IsMatch(symbolId).IsTrue();
     }
 
     extension(ErrorInfo? error)
@@ -43,7 +53,7 @@ public static class AssertionsExtensions
         symbol!.DisplayName.Is(expectedDisplayName);
         symbol.Kind.Is(expectedKind);
         symbol.FilePath.ShouldEndWithPathSuffix(expectedFileName);
-        symbol.SymbolId.ShouldNotBeEmpty();
+        symbol.SymbolId.ShouldBeExternalSymbolId();
     }
 
     internal static void ShouldMatchReferences(this IReadOnlyList<SourceLocation> references, params (string FileName, int Line)[] expected)

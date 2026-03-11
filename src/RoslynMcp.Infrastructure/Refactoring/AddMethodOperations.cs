@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
 using RoslynMcp.Core;
 using RoslynMcp.Core.Models;
+using RoslynMcp.Infrastructure.Agent;
 
 namespace RoslynMcp.Infrastructure.Refactoring;
 
@@ -26,6 +27,8 @@ internal sealed class AddMethodOperations
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
 
+        var targetTypeSymbolId = request.TargetTypeSymbolId.NormalizeAcceptedSymbolIdForOutput();
+
         var validationError = request.ValidateAddMethod();
         if (validationError != null)
         {
@@ -37,27 +40,27 @@ internal sealed class AddMethodOperations
             var (solution, version, error) = await _owner.TryGetSolutionWithVersionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return RefactoringOperationExtensions.CreateAddMethodErrorResult(request.TargetTypeSymbolId, error);
+                return RefactoringOperationExtensions.CreateAddMethodErrorResult(targetTypeSymbolId, error);
             }
 
             var (target, resolveError) = await _targetResolver.ResolveTypeAsync(request.TargetTypeSymbolId, solution, "add_method", ct).ConfigureAwait(false);
             if (target == null)
             {
-                return RefactoringOperationExtensions.CreateAddMethodErrorResult(request.TargetTypeSymbolId, resolveError);
+                return RefactoringOperationExtensions.CreateAddMethodErrorResult(targetTypeSymbolId, resolveError);
             }
 
             if (!_builder.TryBuild(request.Method, out var methodDeclaration, out var builderError) || methodDeclaration == null)
             {
-                return RefactoringOperationExtensions.CreateAddMethodErrorResult(request.TargetTypeSymbolId, builderError);
+                return RefactoringOperationExtensions.CreateAddMethodErrorResult(targetTypeSymbolId, builderError);
             }
 
             if (MethodSignatureComparer.HasEquivalentMethod(target.TypeSymbol, request.Method))
             {
                 return RefactoringOperationExtensions.CreateAddMethodErrorResult(
-                    request.TargetTypeSymbolId,
+                    targetTypeSymbolId,
                     ErrorCodes.MethodConflict,
                     $"An equivalent method '{request.Method.Name}' already exists on '{target.TypeSymbol.ToDisplayString()}'.",
-                    ("targetTypeSymbolId", request.TargetTypeSymbolId),
+                    ("targetTypeSymbolId", targetTypeSymbolId),
                     ("methodName", request.Method.Name),
                     ("operation", "add_method"));
             }
@@ -66,10 +69,10 @@ internal sealed class AddMethodOperations
             if (root == null)
             {
                 return RefactoringOperationExtensions.CreateAddMethodErrorResult(
-                    request.TargetTypeSymbolId,
+                    targetTypeSymbolId,
                     ErrorCodes.InternalError,
                     "Failed to load the target document syntax tree.",
-                    ("targetTypeSymbolId", request.TargetTypeSymbolId),
+                    ("targetTypeSymbolId", targetTypeSymbolId),
                     ("operation", "add_method"));
             }
 
@@ -92,13 +95,13 @@ internal sealed class AddMethodOperations
                 return new AddMethodResult(
                     "failed",
                     changedFiles,
-                    request.TargetTypeSymbolId,
+                    targetTypeSymbolId,
                     null,
                     diagnosticsDelta,
                     RefactoringOperationExtensions.CreateError(
                         ErrorCodes.CreatedSymbolUnresolved,
                         "The inserted method could not be resolved after mutation.",
-                        ("targetTypeSymbolId", request.TargetTypeSymbolId),
+                        ("targetTypeSymbolId", targetTypeSymbolId),
                         ("methodName", request.Method.Name),
                         ("operation", "add_method")));
             }
@@ -106,7 +109,7 @@ internal sealed class AddMethodOperations
             var (applyVersion, versionError) = await _owner._solutionAccessor.GetWorkspaceVersionAsync(ct).ConfigureAwait(false);
             if (versionError != null)
             {
-                return RefactoringOperationExtensions.CreateAddMethodErrorResult(request.TargetTypeSymbolId, versionError);
+                return RefactoringOperationExtensions.CreateAddMethodErrorResult(targetTypeSymbolId, versionError);
             }
 
             if (applyVersion != version)
@@ -114,13 +117,13 @@ internal sealed class AddMethodOperations
                 return new AddMethodResult(
                     "failed",
                     Array.Empty<string>(),
-                    request.TargetTypeSymbolId,
+                    targetTypeSymbolId,
                     null,
                     new DiagnosticsDeltaInfo(Array.Empty<MutationDiagnosticInfo>(), Array.Empty<MutationDiagnosticInfo>()),
                     RefactoringOperationExtensions.CreateError(
                         ErrorCodes.WorkspaceChanged,
                         "Workspace changed during add_method execution.",
-                        ("targetTypeSymbolId", request.TargetTypeSymbolId),
+                        ("targetTypeSymbolId", targetTypeSymbolId),
                         ("operation", "add_method")));
             }
 
@@ -130,20 +133,20 @@ internal sealed class AddMethodOperations
                 return new AddMethodResult(
                     "failed",
                     changedFiles,
-                    request.TargetTypeSymbolId,
+                    targetTypeSymbolId,
                     null,
                     diagnosticsDelta,
                     applyError ?? RefactoringOperationExtensions.CreateError(
                         ErrorCodes.InternalError,
                         "Failed to apply add_method changes.",
-                        ("targetTypeSymbolId", request.TargetTypeSymbolId),
+                        ("targetTypeSymbolId", targetTypeSymbolId),
                         ("operation", "add_method")));
             }
 
             return new AddMethodResult(
                 "applied",
                 changedFiles,
-                request.TargetTypeSymbolId,
+                targetTypeSymbolId,
                 addedMethod,
                 diagnosticsDelta);
         }
@@ -155,10 +158,10 @@ internal sealed class AddMethodOperations
         {
             _owner._logger.LogError(ex, "AddMethod failed for {TargetTypeSymbolId}", request.TargetTypeSymbolId);
             return RefactoringOperationExtensions.CreateAddMethodErrorResult(
-                request.TargetTypeSymbolId,
+                targetTypeSymbolId,
                 ErrorCodes.InternalError,
                 $"Failed to add method to '{request.TargetTypeSymbolId}': {ex.Message}",
-                ("targetTypeSymbolId", request.TargetTypeSymbolId),
+                ("targetTypeSymbolId", targetTypeSymbolId),
                 ("operation", "add_method"));
         }
     }
@@ -180,7 +183,7 @@ internal sealed class AddMethodOperations
         }
 
         return new AddedMethodInfo(
-            RefactoringSymbolIdentity.CreateId(method),
+            RefactoringSymbolIdentity.CreateId(method).ToExternal(),
             method.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat));
     }
 }

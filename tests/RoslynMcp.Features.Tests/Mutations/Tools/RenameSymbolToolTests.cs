@@ -1,9 +1,15 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.DependencyInjection;
 using Is.Assertions;
 using RoslynMcp.Core;
+using RoslynMcp.Core.Contracts;
 using RoslynMcp.Core.Models;
+using RoslynMcp.Features;
 using RoslynMcp.Features.Tools;
 using RoslynMcp.Features.Tools.Inspections;
 using RoslynMcp.Features.Tools.Mutations;
+using RoslynMcp.Infrastructure;
+using RoslynMcp.Infrastructure.Workspace;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -30,7 +36,8 @@ public sealed class RenameSymbolToolTests(ITestOutputHelper output)
         result.Error.ShouldBeNone();
         result.ChangedDocumentCount.Is(3);
         result.RenamedSymbolId.IsNotNull();
-        result.RenamedSymbolId!.ShouldNotBeEmpty();
+        result.RenamedSymbolId!.ShouldBeExternalSymbolId();
+        result.RenamedSymbolId.Is(resolved.Symbol!.SymbolId);
         result.ChangedFiles.Count.Is(3);
         result.ChangedFiles[0].ShouldEndWithPathSuffix(Path.Combine("ProjectApp", "AppOrchestrator.cs"));
         result.ChangedFiles[1].ShouldEndWithPathSuffix(Path.Combine("ProjectCore", "Contracts.cs"));
@@ -148,6 +155,39 @@ public sealed class RenameSymbolToolTests(ITestOutputHelper output)
         finalResolution.Symbol.IsNotNull();
         finalResolution.Symbol!.DisplayName.Is("IWorkItemOperation");
     }
+
+    [Fact]
+    public async Task RenameSymbolAsync_WhenFirstApplyFailsAndReloadRetries_ReturnsUsableRenamedSymbolId()
+    {
+        await using var context = await RetryOnFirstApplySandboxContext.CreateAsync();
+        var sut = context.GetRequiredService<RenameSymbolTool>();
+        var resolver = context.GetRequiredService<ResolveSymbolTool>();
+        var contractsPath = context.GetFilePath("ProjectCore", "Contracts");
+
+        var resolved = await resolver.ExecuteAsync(CancellationToken.None, path: contractsPath, line: 31, column: 24);
+
+        resolved.Error.ShouldBeNone();
+        resolved.Symbol.IsNotNull();
+
+        var renamed = await sut.ExecuteAsync(CancellationToken.None, resolved.Symbol!.SymbolId, "IRenamedWorkItemOperation");
+
+        renamed.Error.ShouldBeNone();
+        renamed.RenamedSymbolId.IsNotNull();
+        context.ApplyInterceptor.ApplyAttempts.Is(2);
+
+        var reverted = await sut.ExecuteAsync(CancellationToken.None, renamed.RenamedSymbolId!, "IWorkItemOperation");
+
+        reverted.Error.ShouldBeNone();
+        reverted.RenamedSymbolId.IsNotNull();
+
+        var finalResolution = await resolver.ExecuteAsync(CancellationToken.None,
+            qualifiedName: "ProjectCore.IWorkItemOperation",
+            projectName: "ProjectCore");
+
+        finalResolution.Error.ShouldBeNone();
+        finalResolution.Symbol.IsNotNull();
+        finalResolution.Symbol!.SymbolId.Is(reverted.RenamedSymbolId);
+    }
 }
 
 file static class AssertionExtensions
@@ -158,5 +198,71 @@ file static class AssertionExtensions
         {
             locations.Any(location => location.FilePath.HasPathSuffix(expectedFileName) && location.Line == expectedLine).IsTrue();
         }
+    }
+}
+
+file sealed class RetryOnFirstApplySandboxContext : SandboxContext
+{
+    private RetryOnFirstApplySandboxContext()
+    { }
+
+    public FirstApplyFailsSolutionSessionService ApplyInterceptor => GetRequiredService<FirstApplyFailsSolutionSessionService>();
+
+    public static async Task<RetryOnFirstApplySandboxContext> CreateAsync(CancellationToken cancellationToken = default)
+    {
+        var context = new RetryOnFirstApplySandboxContext();
+        try
+        {
+            var sandbox = TestSolutionSandbox.Create(context.CanonicalTestSolutionDirectory);
+            await context.InitializeSandboxAsync(sandbox, cancellationToken).ConfigureAwait(false);
+            return context;
+        }
+        catch
+        {
+            await context.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    protected override ServiceProvider CreateServiceProvider() => new ServiceCollection()
+        .AddInfrastructure()
+        .AddSingleton<FirstApplyFailsSolutionSessionService>()
+        .AddSingleton<ISolutionSessionService>(provider => provider.GetRequiredService<FirstApplyFailsSolutionSessionService>())
+        .AddSingleton<IRoslynSolutionAccessor>(provider => provider.GetRequiredService<FirstApplyFailsSolutionSessionService>())
+        .AddImplementations<Tool>()
+        .BuildServiceProvider();
+}
+
+file sealed class FirstApplyFailsSolutionSessionService(RoslynSolutionSessionService inner)
+    : ISolutionSessionService, IRoslynSolutionAccessor
+{
+    private int _remainingApplyFailures = 1;
+
+    public int ApplyAttempts { get; private set; }
+
+    public Task<DiscoverSolutionsResult> DiscoverSolutionsAsync(DiscoverSolutionsRequest request, CancellationToken ct)
+        => inner.DiscoverSolutionsAsync(request, ct);
+
+    public Task<SelectSolutionResult> SelectSolutionAsync(SelectSolutionRequest request, CancellationToken ct)
+        => inner.SelectSolutionAsync(request, ct);
+
+    public Task<ReloadSolutionResult> ReloadSolutionAsync(ReloadSolutionRequest request, CancellationToken ct)
+        => inner.ReloadSolutionAsync(request, ct);
+
+    public Task<(Solution? Solution, ErrorInfo? Error)> GetCurrentSolutionAsync(CancellationToken ct)
+        => inner.GetCurrentSolutionAsync(ct);
+
+    public Task<(int Version, ErrorInfo? Error)> GetWorkspaceVersionAsync(CancellationToken ct)
+        => inner.GetWorkspaceVersionAsync(ct);
+
+    public Task<(bool Applied, ErrorInfo? Error)> TryApplySolutionAsync(Solution solution, CancellationToken ct)
+    {
+        ApplyAttempts++;
+        if (Interlocked.Exchange(ref _remainingApplyFailures, 0) == 1)
+        {
+            return Task.FromResult((false, (ErrorInfo?)new ErrorInfo(ErrorCodes.InternalError, "Injected apply failure for retry coverage.")));
+        }
+
+        return inner.TryApplySolutionAsync(solution, ct);
     }
 }

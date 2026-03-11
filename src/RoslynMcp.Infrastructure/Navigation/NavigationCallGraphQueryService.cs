@@ -1,6 +1,7 @@
 using RoslynMcp.Core;
 using RoslynMcp.Core.Models;
 using Microsoft.Extensions.Logging;
+using RoslynMcp.Infrastructure.Agent;
 
 namespace RoslynMcp.Infrastructure.Navigation;
 
@@ -157,7 +158,7 @@ internal sealed class NavigationCallGraphQueryService(
 
             var nodes = new HashSet<string>(StringComparer.Ordinal)
             {
-                SymbolIdentity.CreateId(symbol.OriginalDefinition ?? symbol)
+                SymbolIdentity.CreateId(symbol.OriginalDefinition ?? symbol).ToExternal()
             };
 
             foreach (var edge in orderedEdges)

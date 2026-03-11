@@ -23,6 +23,8 @@ internal sealed class DeleteMethodOperations
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
 
+        var targetMethodSymbolId = request.TargetMethodSymbolId.NormalizeAcceptedSymbolIdForOutput();
+
         var validationError = request.ValidateDeleteMethod();
         if (validationError != null)
         {
@@ -34,38 +36,38 @@ internal sealed class DeleteMethodOperations
             var (solution, version, error) = await _owner.TryGetSolutionWithVersionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return RefactoringOperationExtensions.CreateDeleteMethodErrorResult(request.TargetMethodSymbolId, error);
+                return RefactoringOperationExtensions.CreateDeleteMethodErrorResult(targetMethodSymbolId, error);
             }
 
             var (target, resolveError) = await _targetResolver.ResolveMethodAsync(request.TargetMethodSymbolId, solution, "delete_method", ct).ConfigureAwait(false);
             if (target == null)
             {
-                return RefactoringOperationExtensions.CreateDeleteMethodErrorResult(request.TargetMethodSymbolId, resolveError);
+                return RefactoringOperationExtensions.CreateDeleteMethodErrorResult(targetMethodSymbolId, resolveError);
             }
 
             var root = await target.Document.GetSyntaxRootAsync(ct).ConfigureAwait(false);
             if (root == null)
             {
                 return RefactoringOperationExtensions.CreateDeleteMethodErrorResult(
-                    request.TargetMethodSymbolId,
+                    targetMethodSymbolId,
                     ErrorCodes.InternalError,
                     "Failed to load the target document syntax tree.",
-                    ("targetMethodSymbolId", request.TargetMethodSymbolId),
+                    ("targetMethodSymbolId", targetMethodSymbolId),
                     ("operation", "delete_method"));
             }
 
             var deletedMethod = new DeletedMethodInfo(
-                request.TargetMethodSymbolId,
+                targetMethodSymbolId,
                 target.MethodSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat));
 
             var updatedRoot = root.RemoveNode(target.Declaration, SyntaxRemoveOptions.KeepNoTrivia);
             if (updatedRoot == null)
             {
                 return RefactoringOperationExtensions.CreateDeleteMethodErrorResult(
-                    request.TargetMethodSymbolId,
+                    targetMethodSymbolId,
                     ErrorCodes.TargetNotSourceEditable,
                     "The target method could not be removed deterministically from the document.",
-                    ("targetMethodSymbolId", request.TargetMethodSymbolId),
+                    ("targetMethodSymbolId", targetMethodSymbolId),
                     ("operation", "delete_method"));
             }
 
@@ -86,20 +88,20 @@ internal sealed class DeleteMethodOperations
                 return new DeleteMethodResult(
                     "failed",
                     changedFiles,
-                    request.TargetMethodSymbolId,
+                    targetMethodSymbolId,
                     null,
                     diagnosticsDelta,
                     RefactoringOperationExtensions.CreateError(
                         ErrorCodes.InternalError,
                         "The deleted method still resolves after mutation.",
-                        ("targetMethodSymbolId", request.TargetMethodSymbolId),
+                        ("targetMethodSymbolId", targetMethodSymbolId),
                         ("operation", "delete_method")));
             }
 
             var (applyVersion, versionError) = await _owner._solutionAccessor.GetWorkspaceVersionAsync(ct).ConfigureAwait(false);
             if (versionError != null)
             {
-                return RefactoringOperationExtensions.CreateDeleteMethodErrorResult(request.TargetMethodSymbolId, versionError);
+                return RefactoringOperationExtensions.CreateDeleteMethodErrorResult(targetMethodSymbolId, versionError);
             }
 
             if (applyVersion != version)
@@ -107,13 +109,13 @@ internal sealed class DeleteMethodOperations
                 return new DeleteMethodResult(
                     "failed",
                     Array.Empty<string>(),
-                    request.TargetMethodSymbolId,
+                    targetMethodSymbolId,
                     null,
                     new DiagnosticsDeltaInfo(Array.Empty<MutationDiagnosticInfo>(), Array.Empty<MutationDiagnosticInfo>()),
                     RefactoringOperationExtensions.CreateError(
                         ErrorCodes.WorkspaceChanged,
                         "Workspace changed during delete_method execution.",
-                        ("targetMethodSymbolId", request.TargetMethodSymbolId),
+                        ("targetMethodSymbolId", targetMethodSymbolId),
                         ("operation", "delete_method")));
             }
 
@@ -123,20 +125,20 @@ internal sealed class DeleteMethodOperations
                 return new DeleteMethodResult(
                     "failed",
                     changedFiles,
-                    request.TargetMethodSymbolId,
+                    targetMethodSymbolId,
                     null,
                     diagnosticsDelta,
                     applyError ?? RefactoringOperationExtensions.CreateError(
                         ErrorCodes.InternalError,
                         "Failed to apply delete_method changes.",
-                        ("targetMethodSymbolId", request.TargetMethodSymbolId),
+                        ("targetMethodSymbolId", targetMethodSymbolId),
                         ("operation", "delete_method")));
             }
 
             return new DeleteMethodResult(
                 "applied",
                 changedFiles,
-                request.TargetMethodSymbolId,
+                targetMethodSymbolId,
                 deletedMethod,
                 diagnosticsDelta);
         }
@@ -148,10 +150,10 @@ internal sealed class DeleteMethodOperations
         {
             _owner._logger.LogError(ex, "DeleteMethod failed for {TargetMethodSymbolId}", request.TargetMethodSymbolId);
             return RefactoringOperationExtensions.CreateDeleteMethodErrorResult(
-                request.TargetMethodSymbolId,
+                targetMethodSymbolId,
                 ErrorCodes.InternalError,
                 $"Failed to delete method '{request.TargetMethodSymbolId}': {ex.Message}",
-                ("targetMethodSymbolId", request.TargetMethodSymbolId),
+                ("targetMethodSymbolId", targetMethodSymbolId),
                 ("operation", "delete_method"));
         }
     }

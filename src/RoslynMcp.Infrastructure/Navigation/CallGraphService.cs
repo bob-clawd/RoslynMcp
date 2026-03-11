@@ -87,6 +87,8 @@ internal sealed class CallGraphService : ICallGraphService
                     var normalizedCaller = info.CallingSymbol.OriginalDefinition ?? info.CallingSymbol;
                     var toId = SymbolIdentity.CreateId(normalizedCalled);
                     var callerId = SymbolIdentity.CreateId(normalizedCaller);
+                    var externalToId = toId.ToExternal();
+                    var externalCallerId = callerId.ToExternal();
 
                     foreach (var location in info.Locations)
                     {
@@ -96,7 +98,7 @@ internal sealed class CallGraphService : ICallGraphService
                         }
 
                         var source = location.ToSourceLocation();
-                        var edge = new CallEdge(callerId, toId, source, normalizedCaller.ToSymbolReference(), normalizedCalled.ToSymbolReference());
+                        var edge = new CallEdge(externalCallerId, externalToId, source, normalizedCaller.ToSymbolReference(), normalizedCalled.ToSymbolReference());
                         if (edgeKeys.Add(edge.GetEdgeKey()))
                         {
                             edges.Add(edge);
@@ -118,7 +120,7 @@ internal sealed class CallGraphService : ICallGraphService
                     var normalizedCurrent = current.OriginalDefinition ?? current;
                     var fromId = SymbolIdentity.CreateId(normalizedCurrent);
                     var toId = SymbolIdentity.CreateId(normalizedCallee);
-                    var edge = new CallEdge(fromId, toId, location.ToSourceLocation(), normalizedCurrent.ToSymbolReference(), normalizedCallee.ToSymbolReference());
+                    var edge = new CallEdge(fromId.ToExternal(), toId.ToExternal(), location.ToSourceLocation(), normalizedCurrent.ToSymbolReference(), normalizedCallee.ToSymbolReference());
                     if (edgeKeys.Add(edge.GetEdgeKey()))
                     {
                         edges.Add(edge);

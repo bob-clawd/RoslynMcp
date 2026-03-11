@@ -261,6 +261,12 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
 
     private async Task<SymbolFlowFacts?> ResolveSymbolFactsAsync(Solution solution, string symbolId, CancellationToken ct)
     {
+        var normalizedSymbolId = NormalizeInputSymbolId(symbolId);
+        if (string.IsNullOrWhiteSpace(normalizedSymbolId))
+        {
+            return null;
+        }
+
         var sourceProjectNames = new HashSet<string>(StringComparer.Ordinal);
         string? declarationPath = null;
         var resolvedWithoutSource = false;
@@ -273,7 +279,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
             if (compilation == null)
                 continue;
 
-            var symbol = SymbolIdentity.Resolve(symbolId, compilation, ct);
+            var symbol = SymbolIdentity.Resolve(normalizedSymbolId, compilation, ct);
             if (symbol == null)
                 continue;
 
@@ -347,6 +353,13 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
         if (cache != null && cache.TryGetValue(symbolId, out var cached))
             return cached;
 
+        var normalizedSymbolId = NormalizeInputSymbolId(symbolId);
+        if (string.IsNullOrWhiteSpace(normalizedSymbolId))
+        {
+            cache?.Add(symbolId, null);
+            return null;
+        }
+
         foreach (var project in solution.Projects)
         {
             ct.ThrowIfCancellationRequested();
@@ -354,7 +367,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
             if (await project.GetCompilationAsync(ct).ConfigureAwait(false) is not { } compilation)
                 continue;
 
-            if (SymbolIdentity.Resolve(symbolId, compilation, ct) is not { } symbol)
+            if (SymbolIdentity.Resolve(normalizedSymbolId, compilation, ct) is not { } symbol)
                 continue;
 
             var resolved = symbol.OriginalDefinition ?? symbol;
@@ -369,6 +382,16 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
 
     private static bool CanHavePolymorphicTargets(IMethodSymbol method)
         => method.IsAbstract || ((method.IsVirtual || method.IsOverride) && !method.IsSealed);
+
+    private static string? NormalizeInputSymbolId(string? symbolId)
+    {
+        if (string.IsNullOrWhiteSpace(symbolId))
+        {
+            return null;
+        }
+
+        return symbolId.TryToInternal(out var internalSymbolId) ? internalSymbolId : symbolId;
+    }
 
     private async Task<IReadOnlyList<SymbolReference>> FindPossibleTargetsAsync(IMethodSymbol method, Solution solution, CancellationToken ct)
     {

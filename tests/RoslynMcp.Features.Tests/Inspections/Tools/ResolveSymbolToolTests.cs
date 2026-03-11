@@ -32,6 +32,7 @@ public sealed class ResolveSymbolToolTests(SharedSandboxFixture fixture, ITestOu
         result.Candidates.IsEmpty();
         result.Symbol.ShouldMatchResolvedSymbol("AppOrchestrator", "NamedType", Path.Combine("ProjectApp", "AppOrchestrator.cs"));
         result.Symbol!.QualifiedDisplayName.Is("ProjectApp.AppOrchestrator");
+        result.Symbol.SymbolId.ShouldBeExternalSymbolId();
         
         result.Symbol.Reference.ShouldMatchReference("type:ProjectApp.AppOrchestrator", "ProjectApp.AppOrchestrator",
             Path.Combine("ProjectApp", "AppOrchestrator.cs"), 6);
@@ -195,6 +196,7 @@ public sealed class ResolveSymbolToolTests(SharedSandboxFixture fixture, ITestOu
         result.Symbol.IsNull();
         result.IsAmbiguous.IsTrue();
         result.Candidates.Count.Is(3);
+        result.Candidates.All(static candidate => candidate.SymbolId.StartsWith('S')).IsTrue();
         result.Candidates.ShouldContainCandidate("ProjectImpl.FastWorkItemOperation.ExecuteAsync(WorkItem, CancellationToken)", "ProjectImpl");
         result.Candidates.ShouldContainCandidate("ProjectImpl.FastWorkItemOperation.ExecuteAsync(Guid, string, CancellationToken)", "ProjectImpl");
         result.Candidates.ShouldContainCandidate("ProjectImpl.FastWorkItemOperation.ExecuteAsync(Guid, string, int, CancellationToken)", "ProjectImpl");
@@ -261,7 +263,7 @@ file static class AssertionExtensions
             reference.DeclarationLocation.IsNotNull();
             reference.DeclarationLocation!.FilePath.ShouldEndWithPathSuffix(expectedFileName);
             reference.DeclarationLocation.Line.Is(expectedLine);
-            reference.SymbolId.ShouldNotBeEmpty();
+            reference.SymbolId.ShouldBeExternalSymbolId();
         }
     }
 }
