@@ -6,7 +6,7 @@ namespace RoslynMcp.Features.Tests;
 
 public static partial class AssertionsExtensions
 {
-    [GeneratedRegex(@"^S\+\d{4,}$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^S\-\d{4,}$", RegexOptions.CultureInvariant)]
     private static partial Regex ExternalSymbolIdPattern();
     
     extension(string actualPath)
