@@ -400,7 +400,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
             .Where(static implementation => implementation.Kind == SymbolKind.Method)
             .Where(static implementation => implementation.Locations.Any(location => location.IsInSource))
             .Where(static implementation => SourceVisibility.ShouldIncludeInInteractiveTrace(implementation.GetDeclarationPosition().FilePath))
-            .OrderBy(static implementation => SymbolIdentity.CreateId(implementation), StringComparer.Ordinal)
+            .OrderBy(static implementation => implementation.CreateId(), StringComparer.Ordinal)
             .Select(static implementation => implementation.ToSymbolReference())
             .DistinctBy(static reference => reference.SymbolId)
             .ToArray();

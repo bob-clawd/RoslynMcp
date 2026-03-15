@@ -68,6 +68,6 @@ public static class SymbolIdMapper
     private static string CreateExternalId()
     {
         var newId = Interlocked.Increment(ref _nextId);
-        return $"S+{newId:D4}";
+        return $"S-{newId:D4}";
     }
 }

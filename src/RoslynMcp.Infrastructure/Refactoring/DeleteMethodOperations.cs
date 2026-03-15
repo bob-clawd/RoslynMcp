@@ -5,18 +5,11 @@ using RoslynMcp.Core.Models;
 
 namespace RoslynMcp.Infrastructure.Refactoring;
 
-internal sealed class DeleteMethodOperations
+internal sealed class DeleteMethodOperations(RefactoringOperationOrchestrator owner)
 {
-    private readonly RefactoringOperationOrchestrator _owner;
-    private readonly MethodMutationTargetResolver _targetResolver;
-    private readonly DocumentDiagnosticsDeltaService _diagnosticsDeltaService;
-
-    public DeleteMethodOperations(RefactoringOperationOrchestrator owner)
-    {
-        _owner = owner ?? throw new ArgumentNullException(nameof(owner));
-        _targetResolver = new MethodMutationTargetResolver(owner);
-        _diagnosticsDeltaService = new DocumentDiagnosticsDeltaService();
-    }
+    private readonly RefactoringOperationOrchestrator _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+    private readonly MethodMutationTargetResolver _targetResolver = new (owner);
+    private readonly DocumentDiagnosticsDeltaService _diagnosticsDeltaService = new ();
 
     public async Task<DeleteMethodResult> DeleteMethodAsync(DeleteMethodRequest request, CancellationToken ct)
     {

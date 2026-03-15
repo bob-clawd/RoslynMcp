@@ -37,7 +37,7 @@ public static partial class CodeUnderstandingExtensions
             foreach (var symbol in symbols)
             {
                 var normalizedSymbol = symbol.OriginalDefinition ?? symbol;
-                var symbolId = SymbolIdentity.CreateId(normalizedSymbol);
+                var symbolId = normalizedSymbol.CreateId();
 
                 if (!seen.Add(symbolId))
                     continue;
@@ -284,7 +284,7 @@ public static partial class CodeUnderstandingExtensions
             .ThenBy(match => GetResolveSymbolKindPriority(match.Symbol))
             .ThenBy(match => match.Symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat), StringComparer.Ordinal)
             .ThenBy(match => match.ProjectName, StringComparer.Ordinal)
-            .ThenBy(match => SymbolIdentity.CreateId(match.Symbol), StringComparer.Ordinal)
+            .ThenBy(match => match.Symbol.CreateId(), StringComparer.Ordinal)
             .Select(match =>
             {
                 var reference = match.Symbol.ToSymbolReference();

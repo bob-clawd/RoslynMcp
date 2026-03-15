@@ -32,7 +32,7 @@ internal static class SymbolIdentity
             ?? throw new InvalidOperationException("Unable to locate SymbolKeyResolution.Symbol");
     }
 
-    public static string CreateId(ISymbol symbol)
+    public static string CreateId(this ISymbol symbol)
     {
         var resolved = symbol.OriginalDefinition ?? symbol;
         var result = (string?)_createString.Invoke(null, [resolved, CancellationToken.None]);

@@ -13,8 +13,6 @@ namespace RoslynMcp.Infrastructure.Refactoring;
 
 internal static class RefactoringOperationExtensions
 {
-    // === Location Extensions ===
-
     public static SourceLocation ToSourceLocation(this Location location)
     {
         var span = location.GetLineSpan();
@@ -33,15 +31,16 @@ internal static class RefactoringOperationExtensions
         return new SourceLocation(document.FilePath ?? document.Name, line.LineNumber + 1, span.Start - line.Start + 1);
     }
 
-    // === Diagnostic Extensions ===
+    extension(Diagnostic diagnostic)
+    {
+        public bool IsSupportedDiagnostic()
+            => RefactoringOperationOrchestrator.SupportedFixDiagnosticIds.Contains(diagnostic.Id);
 
-    public static bool IsSupportedDiagnostic(this Diagnostic diagnostic)
-        => RefactoringOperationOrchestrator.SupportedFixDiagnosticIds.Contains(diagnostic.Id);
-
-    public static string GetCodeFixCategory(this Diagnostic diagnostic)
-        => string.IsNullOrWhiteSpace(diagnostic.Descriptor.Category)
-            ? RefactoringOperationOrchestrator.SupportedFixCategory
-            : diagnostic.Descriptor.Category.Trim().ToLowerInvariant();
+        public string GetCodeFixCategory()
+            => string.IsNullOrWhiteSpace(diagnostic.Descriptor.Category)
+                ? RefactoringOperationOrchestrator.SupportedFixCategory
+                : diagnostic.Descriptor.Category.Trim().ToLowerInvariant();
+    }
 
     public static HashSet<string>? ToDiagnosticFilter(this IReadOnlyList<string>? diagnosticIds)
     {
@@ -69,21 +68,15 @@ internal static class RefactoringOperationExtensions
     {
         var root = await document.GetSyntaxRootAsync(ct).ConfigureAwait(false);
         if (root == null)
-        {
             return null;
-        }
 
         var token = root.FindToken(diagnostic.Location.SourceSpan.Start);
         var declaration = token.Parent?.AncestorsAndSelf().OfType<LocalDeclarationStatementSyntax>().FirstOrDefault();
         if (declaration == null)
-        {
             return null;
-        }
 
         if (declaration.Declaration.Variables.Count != 1)
-        {
             return null;
-        }
 
         return declaration;
     }
@@ -102,14 +95,12 @@ internal static class RefactoringOperationExtensions
         return new CodeFixDescriptor(fixId, title, diagnostic.Id, RefactoringOperationOrchestrator.SupportedFixCategory, location, filePath);
     }
 
-    // === Syntax Extensions ===
-
     public static CompilationUnitSyntax OrganizeUsings(this CompilationUnitSyntax root)
     {
-        var updated = root.WithUsings(SortUsingDirectives(root.Usings));
+        var updated = root.WithUsings(root.Usings.SortUsingDirectives());
         foreach (var namespaceDeclaration in updated.DescendantNodes().OfType<BaseNamespaceDeclarationSyntax>())
         {
-            var orderedUsings = SortUsingDirectives(namespaceDeclaration.Usings);
+            var orderedUsings = namespaceDeclaration.Usings.SortUsingDirectives();
             if (orderedUsings == namespaceDeclaration.Usings)
             {
                 continue;
@@ -124,9 +115,7 @@ internal static class RefactoringOperationExtensions
     public static SyntaxList<UsingDirectiveSyntax> SortUsingDirectives(this SyntaxList<UsingDirectiveSyntax> usings)
     {
         if (usings.Count <= 1)
-        {
             return usings;
-        }
 
         return SyntaxFactory.List(
             usings
@@ -136,193 +125,160 @@ internal static class RefactoringOperationExtensions
                 .ThenBy(static directive => directive.Alias?.Name.Identifier.ValueText ?? string.Empty, StringComparer.Ordinal));
     }
 
-    // === Symbol Extensions ===
-
     public static bool IsValidIdentifier(this string candidate, ISymbol symbol)
     {
         if (string.IsNullOrWhiteSpace(candidate))
-        {
             return false;
-        }
 
         if (symbol.Language == LanguageNames.CSharp)
-        {
             return SyntaxFacts.IsValidIdentifier(candidate);
-        }
 
         return true;
     }
 
-    public static ISet<string> GetSourceLocationKeys(this ISymbol symbol)
+    extension(ISymbol symbol)
     {
-        var keys = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var location in symbol.Locations.Where(static l => l.IsInSource))
+        public ISet<string> GetSourceLocationKeys()
         {
-            var sourceLocation = location.ToSourceLocation();
-            keys.Add(sourceLocation.GetLocationKey());
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var location in symbol.Locations.Where(static l => l.IsInSource))
+            {
+                var sourceLocation = location.ToSourceLocation();
+                keys.Add(sourceLocation.GetLocationKey());
+            }
+
+            return keys;
         }
 
-        return keys;
-    }
-
-    public static async Task<IReadOnlyList<SourceLocation>> CollectAffectedLocationsAsync(this ISymbol symbol, Solution solution, CancellationToken ct)
-    {
-        var references = await SymbolFinder.FindReferencesAsync(symbol, solution, ct).ConfigureAwait(false);
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var locations = new List<SourceLocation>();
-
-        foreach (var reference in references)
+        public async Task<IReadOnlyList<SourceLocation>> CollectAffectedLocationsAsync(Solution solution, CancellationToken ct)
         {
-            ct.ThrowIfCancellationRequested();
+            var references = await SymbolFinder.FindReferencesAsync(symbol, solution, ct).ConfigureAwait(false);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var locations = new List<SourceLocation>();
 
-            foreach (var location in reference.Locations)
+            foreach (var reference in references)
             {
-                if (!location.Location.IsInSource)
-                {
-                    continue;
-                }
+                ct.ThrowIfCancellationRequested();
 
-                var sourceLocation = location.Location.ToSourceLocation();
+                foreach (var location in reference.Locations.Where(location => location.Location.IsInSource))
+                {
+                    var sourceLocation = location.Location.ToSourceLocation();
+                    var key = sourceLocation.GetLocationKey();
+                    
+                    if (seen.Add(key))
+                        locations.Add(sourceLocation);
+                }
+            }
+
+            foreach (var location in symbol.Locations.Where(static l => l.IsInSource))
+            {
+                var sourceLocation = location.ToSourceLocation();
                 var key = sourceLocation.GetLocationKey();
                 if (seen.Add(key))
                 {
                     locations.Add(sourceLocation);
                 }
             }
+
+            return locations
+                .OrderBy(loc => loc.FilePath, StringComparer.Ordinal)
+                .ThenBy(loc => loc.Line)
+                .ThenBy(loc => loc.Column)
+                .ToList();
         }
 
-        foreach (var location in symbol.Locations.Where(static l => l.IsInSource))
+        public bool WouldConflict(string newName)
         {
-            var sourceLocation = location.ToSourceLocation();
-            var key = sourceLocation.GetLocationKey();
-            if (seen.Add(key))
+            if (string.Equals(symbol.Name, newName, StringComparison.Ordinal))
+                return false;
+
+            var members = symbol.ContainingType?.GetMembers(newName) ?? default;
+            if (members.IsDefaultOrEmpty && symbol.ContainingNamespace != null)
             {
-                locations.Add(sourceLocation);
+                members = symbol.ContainingNamespace.GetMembers(newName)
+                    .Cast<ISymbol>()
+                    .ToImmutableArray();
             }
-        }
 
-        return locations
-            .OrderBy(loc => loc.FilePath, StringComparer.Ordinal)
-            .ThenBy(loc => loc.Line)
-            .ThenBy(loc => loc.Column)
-            .ToList();
-    }
+            if (members.IsDefaultOrEmpty)
+                return false;
 
-    public static bool WouldConflict(this ISymbol symbol, string newName)
-    {
-        if (string.Equals(symbol.Name, newName, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var members = symbol.ContainingType?.GetMembers(newName) ?? default;
-        if (members.IsDefaultOrEmpty && symbol.ContainingNamespace != null)
-        {
-            members = symbol.ContainingNamespace.GetMembers(newName)
-                .Cast<ISymbol>()
-                .ToImmutableArray();
-        }
-
-        if (members.IsDefaultOrEmpty)
-        {
-            return false;
-        }
-
-        foreach (var member in members)
-        {
-            if (symbol.ConflictsWith(member))
+            foreach (var member in members)
             {
-                return true;
+                if (symbol.ConflictsWith(member))
+                    return true;
             }
-        }
 
-        return false;
-    }
-
-    public static bool ConflictsWith(this ISymbol original, ISymbol existing)
-    {
-        var normalizedOriginal = original.OriginalDefinition ?? original;
-        var normalizedExisting = existing.OriginalDefinition ?? existing;
-
-        if (SymbolEqualityComparer.Default.Equals(normalizedOriginal, normalizedExisting))
-        {
             return false;
         }
 
-        if (normalizedOriginal.Kind != normalizedExisting.Kind)
+        public bool ConflictsWith(ISymbol existing)
         {
-            return false;
-        }
+            var normalizedOriginal = symbol.OriginalDefinition ?? symbol;
+            var normalizedExisting = existing.OriginalDefinition ?? existing;
 
-        if (normalizedOriginal is IMethodSymbol originalMethod && normalizedExisting is IMethodSymbol existingMethod)
-        {
-            if (originalMethod.Parameters.Length != existingMethod.Parameters.Length)
+            if (SymbolEqualityComparer.Default.Equals(normalizedOriginal, normalizedExisting))
             {
                 return false;
             }
 
-            for (var i = 0; i < originalMethod.Parameters.Length; i++)
+            if (normalizedOriginal.Kind != normalizedExisting.Kind)
             {
-                if (!SymbolEqualityComparer.Default.Equals(originalMethod.Parameters[i].Type, existingMethod.Parameters[i].Type))
-                {
-                    return false;
-                }
+                return false;
             }
 
+            if (normalizedOriginal is IMethodSymbol originalMethod && normalizedExisting is IMethodSymbol existingMethod)
+            {
+                if (originalMethod.Parameters.Length != existingMethod.Parameters.Length)
+                    return false;
+
+                for (var i = 0; i < originalMethod.Parameters.Length; i++)
+                {
+                    if (!SymbolEqualityComparer.Default.Equals(originalMethod.Parameters[i].Type, existingMethod.Parameters[i].Type))
+                        return false;
+                }
+
+                return true;
+            }
+
+            if (normalizedOriginal is IPropertySymbol && normalizedExisting is IPropertySymbol)
+                return true;
+
+            if (normalizedOriginal is IFieldSymbol && normalizedExisting is IFieldSymbol)
+                return true;
+
+            if (normalizedOriginal is IEventSymbol && normalizedExisting is IEventSymbol)
+                return true;
+
+            if (normalizedOriginal is INamedTypeSymbol && normalizedExisting is INamedTypeSymbol)
+                return true;
+
             return true;
         }
-
-        if (normalizedOriginal is IPropertySymbol && normalizedExisting is IPropertySymbol)
-        {
-            return true;
-        }
-
-        if (normalizedOriginal is IFieldSymbol && normalizedExisting is IFieldSymbol)
-        {
-            return true;
-        }
-
-        if (normalizedOriginal is IEventSymbol && normalizedExisting is IEventSymbol)
-        {
-            return true;
-        }
-
-        if (normalizedOriginal is INamedTypeSymbol && normalizedExisting is INamedTypeSymbol)
-        {
-            return true;
-        }
-
-        return true;
     }
-
-    // === Solution/Document Scope Extensions ===
 
     public static IEnumerable<Document> ResolveScopeDocuments(this Solution solution, string scope, string? path)
     {
         if (string.Equals(scope, "solution", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(path))
-        {
             return solution.Projects.SelectMany(static project => project.Documents);
-        }
 
         if (string.Equals(scope, "project", StringComparison.Ordinal))
         {
             return solution.Projects
-                .Where(project => MatchesByNormalizedPath(project.FilePath, path)
+                .Where(project => project.FilePath.MatchesByNormalizedPath(path)
                                   || string.Equals(project.Name, path, StringComparison.OrdinalIgnoreCase))
                 .SelectMany(static project => project.Documents);
         }
 
         return solution.Projects
             .SelectMany(static project => project.Documents)
-            .Where(document => MatchesByNormalizedPath(document.FilePath, path));
+            .Where(document => document.FilePath.MatchesByNormalizedPath(path));
     }
 
     public static bool MatchesByNormalizedPath(this string? candidatePath, string path)
     {
         if (string.IsNullOrWhiteSpace(candidatePath) || string.IsNullOrWhiteSpace(path))
-        {
             return false;
-        }
 
         try
         {
@@ -345,14 +301,10 @@ internal static class RefactoringOperationExtensions
         => solution.Projects.SelectMany(static project => project.Documents)
             .FirstOrDefault(d => d.FilePath.MatchesByNormalizedPath(filePath));
 
-    // === TextSpan Extensions ===
-
     public static TextSpan CreateSelectionSpan(this int position, int? selectionStart, int? selectionLength)
     {
         if (selectionStart.HasValue && selectionLength.HasValue)
-        {
             return new TextSpan(selectionStart.Value, selectionLength.Value);
-        }
 
         return new TextSpan(position, 0);
     }
@@ -360,15 +312,11 @@ internal static class RefactoringOperationExtensions
     public static bool IntersectsSelection(this TextSpan span, int? selectionStart, int? selectionLength)
     {
         if (!selectionStart.HasValue || !selectionLength.HasValue)
-        {
             return true;
-        }
 
         var selection = new TextSpan(selectionStart.Value, selectionLength.Value);
         return selection.OverlapsWith(span) || selection.Contains(span.Start) || span.Contains(selection.Start);
     }
-
-    // === Key Encoding Extensions ===
 
     public static string EncodeKey(this string? value)
         => Convert.ToBase64String(Encoding.UTF8.GetBytes(value ?? string.Empty));
@@ -387,8 +335,6 @@ internal static class RefactoringOperationExtensions
 
     public static string? NormalizeNullable(this string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value;
-
-    // === FixId Extensions ===
 
     public static string BuildFixId(this int workspaceVersion, string diagnosticId, int spanStart, int spanLength, string filePath)
     {
@@ -431,8 +377,6 @@ internal static class RefactoringOperationExtensions
         return new ParsedFixId(version, parts[3], spanStart, spanLength, filePath);
     }
 
-    // === Provider Key Extensions ===
-
     public static string BuildProviderCodeFixKey(this string providerType, string diagnosticId, string? equivalenceKey, string title)
         => string.Join('|', "cf", providerType.EncodeKey(), diagnosticId.EncodeKey(), equivalenceKey.EncodeKey(), title.EncodeKey());
 
@@ -443,22 +387,16 @@ internal static class RefactoringOperationExtensions
     {
         parsed = default;
         if (string.IsNullOrWhiteSpace(key))
-        {
             return false;
-        }
 
         var parts = key.Split('|');
         if (parts.Length != 5 || !string.Equals(parts[0], "cf", StringComparison.Ordinal))
-        {
             return false;
-        }
 
         var providerType = parts[1].DecodeKey();
         var diagnosticId = parts[2].DecodeKey();
         if (string.IsNullOrWhiteSpace(providerType) || string.IsNullOrWhiteSpace(diagnosticId))
-        {
             return false;
-        }
 
         parsed = new ProviderCodeFixKey(providerType, diagnosticId, parts[3].DecodeKey().NormalizeNullable(), parts[4].DecodeKey());
         return true;
@@ -468,27 +406,19 @@ internal static class RefactoringOperationExtensions
     {
         parsed = default;
         if (string.IsNullOrWhiteSpace(key))
-        {
             return false;
-        }
 
         var parts = key.Split('|');
         if (parts.Length != 4 || !string.Equals(parts[0], "rf", StringComparison.Ordinal))
-        {
             return false;
-        }
 
         var providerType = parts[1].DecodeKey();
         if (string.IsNullOrWhiteSpace(providerType))
-        {
             return false;
-        }
 
         parsed = new ProviderRefactoringKey(providerType, parts[2].DecodeKey().NormalizeNullable(), parts[3].DecodeKey());
         return true;
     }
-
-    // === Changed Files Extensions ===
 
     public static async Task<IReadOnlyList<ChangedFilePreview>> CollectChangedFilesAsync(this Solution original, Solution updated, CancellationToken ct)
     {
@@ -522,23 +452,6 @@ internal static class RefactoringOperationExtensions
             .ToList();
     }
 
-    // === Workspace Health Extensions ===
-
-    public static CleanupWorkspaceHealth EvaluateWorkspaceFilesystemHealth(this IReadOnlyList<Document> scopedDocuments)
-    {
-        var missingRootedFiles = scopedDocuments
-            .Select(static document => document.FilePath)
-            .Where(static path => !string.IsNullOrWhiteSpace(path))
-            .Select(static path => path!)
-            .Where(static filePath => Path.IsPathRooted(filePath))
-            .Where(static path => !File.Exists(path))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        return new CleanupWorkspaceHealth(missingRootedFiles.Length == 0, missingRootedFiles);
-    }
-
     public static IReadOnlyList<string> BuildCleanupMetadataWarnings(bool healthCheckPerformed, bool autoReloadAttempted, bool autoReloadSucceeded)
         =>
         [
@@ -546,8 +459,6 @@ internal static class RefactoringOperationExtensions
             $"meta.{RefactoringOperationOrchestrator.CleanupAutoReloadAttemptedDetail}={autoReloadAttempted.ToString().ToLowerInvariant()}",
             $"meta.{RefactoringOperationOrchestrator.CleanupAutoReloadSucceededDetail}={autoReloadSucceeded.ToString().ToLowerInvariant()}"
         ];
-
-    // === Error Factory Extensions ===
 
     public static ExecuteCleanupResult CreateStaleWorkspaceResult(
         string scope,
@@ -576,17 +487,13 @@ internal static class RefactoringOperationExtensions
     public static ErrorInfo CreateError(string code, string message, params (string Key, string? Value)[] details)
     {
         if (details.Length == 0)
-        {
             return new ErrorInfo(code, message);
-        }
 
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var (key, value) in details)
         {
             if (!string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(value))
-            {
                 map[key] = value;
-            }
         }
 
         return map.Count == 0 ? new ErrorInfo(code, message) : new ErrorInfo(code, message, map);
@@ -622,84 +529,40 @@ internal static class RefactoringOperationExtensions
     public static AddMethodResult CreateAddMethodErrorResult(string targetTypeSymbolId, ErrorInfo? error)
     {
         var safeError = error ?? new ErrorInfo(Core.ErrorCodes.InternalError, "An unknown error occurred while adding the method.");
-        return new AddMethodResult(
-            "failed",
-            Array.Empty<string>(),
-            targetTypeSymbolId,
-            null,
-            new DiagnosticsDeltaInfo(Array.Empty<MutationDiagnosticInfo>(), Array.Empty<MutationDiagnosticInfo>()),
-            safeError);
+        return new AddMethodResult("failed", [], targetTypeSymbolId, null, new DiagnosticsDeltaInfo([], []), safeError);
     }
 
     public static DeleteMethodResult CreateDeleteMethodErrorResult(string targetMethodSymbolId, string code, string message, params (string Key, string? Value)[] details)
-        => new(
-            "failed",
-            Array.Empty<string>(),
-            targetMethodSymbolId,
-            null,
-            new DiagnosticsDeltaInfo(Array.Empty<MutationDiagnosticInfo>(), Array.Empty<MutationDiagnosticInfo>()),
-            CreateError(code, message, details));
+        => new("failed", [], targetMethodSymbolId, null, new DiagnosticsDeltaInfo([], []), CreateError(code, message, details));
 
     public static DeleteMethodResult CreateDeleteMethodErrorResult(string targetMethodSymbolId, ErrorInfo? error)
     {
         var safeError = error ?? new ErrorInfo(Core.ErrorCodes.InternalError, "An unknown error occurred while deleting the method.");
-        return new DeleteMethodResult(
-            "failed",
-            Array.Empty<string>(),
-            targetMethodSymbolId,
-            null,
-            new DiagnosticsDeltaInfo(Array.Empty<MutationDiagnosticInfo>(), Array.Empty<MutationDiagnosticInfo>()),
-            safeError);
+        return new DeleteMethodResult("failed", [], targetMethodSymbolId, null, new DiagnosticsDeltaInfo([], []), safeError);
     }
 
     public static ReplaceMethodResult CreateReplaceMethodErrorResult(string targetMethodSymbolId, string code, string message, params (string Key, string? Value)[] details)
-        => new(
-            "failed",
-            Array.Empty<string>(),
-            targetMethodSymbolId,
-            null,
-            new DiagnosticsDeltaInfo(Array.Empty<MutationDiagnosticInfo>(), Array.Empty<MutationDiagnosticInfo>()),
-            CreateError(code, message, details));
+        => new("failed", [], targetMethodSymbolId, null, new DiagnosticsDeltaInfo([], []), CreateError(code, message, details));
 
     public static ReplaceMethodResult CreateReplaceMethodErrorResult(string targetMethodSymbolId, ErrorInfo? error)
     {
         var safeError = error ?? new ErrorInfo(Core.ErrorCodes.InternalError, "An unknown error occurred while replacing the method.");
-        return new ReplaceMethodResult(
-            "failed",
-            Array.Empty<string>(),
-            targetMethodSymbolId,
-            null,
-            new DiagnosticsDeltaInfo(Array.Empty<MutationDiagnosticInfo>(), Array.Empty<MutationDiagnosticInfo>()),
-            safeError);
+        return new ReplaceMethodResult("failed", [], targetMethodSymbolId, null, new DiagnosticsDeltaInfo([], []), safeError);
     }
 
     public static ReplaceMethodBodyResult CreateReplaceMethodBodyErrorResult(string targetMethodSymbolId, string code, string message, params (string Key, string? Value)[] details)
-        => new(
-            "failed",
-            Array.Empty<string>(),
-            targetMethodSymbolId,
-            null,
-            new DiagnosticsDeltaInfo(Array.Empty<MutationDiagnosticInfo>(), Array.Empty<MutationDiagnosticInfo>()),
-            CreateError(code, message, details));
+        => new("failed", [], targetMethodSymbolId, null, new DiagnosticsDeltaInfo([], []), CreateError(code, message, details));
 
     public static ReplaceMethodBodyResult CreateReplaceMethodBodyErrorResult(string targetMethodSymbolId, ErrorInfo? error)
     {
         var safeError = error ?? new ErrorInfo(Core.ErrorCodes.InternalError, "An unknown error occurred while replacing the method body.");
-        return new ReplaceMethodBodyResult(
-            "failed",
-            Array.Empty<string>(),
-            targetMethodSymbolId,
-            null,
-            new DiagnosticsDeltaInfo(Array.Empty<MutationDiagnosticInfo>(), Array.Empty<MutationDiagnosticInfo>()),
-            safeError);
+        return new ReplaceMethodBodyResult("failed", [], targetMethodSymbolId, null, new DiagnosticsDeltaInfo([], []), safeError);
     }
 
     public static ErrorInfo? TryCreateInvalidSymbolIdError(string symbolId, string operation)
     {
         if (!string.IsNullOrWhiteSpace(symbolId))
-        {
             return null;
-        }
 
         return CreateError(
             Core.ErrorCodes.InvalidInput,
@@ -711,9 +574,7 @@ internal static class RefactoringOperationExtensions
     public static ErrorInfo? TryCreateInvalidTargetTypeSymbolIdError(string symbolId, string operation)
     {
         if (!string.IsNullOrWhiteSpace(symbolId))
-        {
             return null;
-        }
 
         return CreateError(
             Core.ErrorCodes.InvalidInput,
@@ -725,9 +586,7 @@ internal static class RefactoringOperationExtensions
     public static ErrorInfo? TryCreateInvalidMethodSymbolIdError(string symbolId, string operation)
     {
         if (!string.IsNullOrWhiteSpace(symbolId))
-        {
             return null;
-        }
 
         return CreateError(
             Core.ErrorCodes.InvalidInput,
@@ -739,19 +598,13 @@ internal static class RefactoringOperationExtensions
     public static string NormalizeAcceptedSymbolIdForOutput(this string symbolId)
     {
         if (string.IsNullOrWhiteSpace(symbolId))
-        {
             return string.Empty;
-        }
 
         if (symbolId.TryToInternal(out _))
-        {
             return symbolId;
-        }
 
         if (!LooksLikeInternalSymbolId(symbolId))
-        {
             return symbolId;
-        }
 
         return symbolId.ToExternal();
     }
@@ -763,31 +616,20 @@ internal static class RefactoringOperationExtensions
         => CreatePreviewError(CreateError(code, message, ("operation", "preview_code_fix")));
 
     public static PreviewCodeFixResult CreatePreviewError(ErrorInfo error)
-        => new(string.Empty, string.Empty, Array.Empty<ChangedFilePreview>(), error);
+        => new(string.Empty, string.Empty, [], error);
 
     public static ApplyCodeFixResult CreateApplyError(string fixId, string code, string message)
-        => new(fixId,
-            0,
-            Array.Empty<string>(),
-            CreateError(code, message, ("fixId", fixId), ("operation", "apply_code_fix")));
-
-    // === Action Matching Extensions ===
+        => new(fixId, 0, [], CreateError(code, message, ("fixId", fixId), ("operation", "apply_code_fix")));
 
     public static bool MatchesProviderAction(this ActionExecutionIdentity identity, CodeAction action, string actionTitle)
     {
-        if (!string.IsNullOrWhiteSpace(identity.RefactoringId)
-            && string.Equals(identity.RefactoringId, action.EquivalenceKey, StringComparison.Ordinal))
-        {
+        if (!string.IsNullOrWhiteSpace(identity.RefactoringId) && string.Equals(identity.RefactoringId, action.EquivalenceKey, StringComparison.Ordinal))
             return true;
-        }
 
         return string.Equals(action.Title, actionTitle, StringComparison.Ordinal);
     }
 
-    // === Cleanup Rule Extensions ===
-
-    public static IReadOnlyList<string> BuildCleanupRuleIds()
-        =>
+    public static IReadOnlyList<string> BuildCleanupRuleIds() =>
         [
             RefactoringOperationOrchestrator.CleanupRuleRemoveUnusedUsings,
             RefactoringOperationOrchestrator.CleanupRuleOrganizeUsings,

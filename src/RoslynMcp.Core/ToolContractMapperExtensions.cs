@@ -38,8 +38,8 @@ public static class ToolContractMapperExtensions
                 NormalizeOptionalString(namespacePrefix),
                 NormalizeOptionalString(kind)?.ToLowerInvariant(),
                 NormalizeOptionalString(accessibility)?.ToLowerInvariant(),
-                includeSummary ?? false,
-                includeMembers ?? false,
+                includeSummary ?? true,
+                includeMembers ?? true,
                 NormalizeNonNegative(limit),
                 NormalizeNonNegative(offset));
 

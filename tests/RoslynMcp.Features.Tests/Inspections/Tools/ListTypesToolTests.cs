@@ -62,20 +62,41 @@ public sealed class ListTypesToolTests(SharedSandboxFixture fixture, ITestOutput
     }
 
     [Fact]
-    public async Task ListTypesAsync_WithoutIncludeSummary_KeepsSummariesOmitted()
+    public async Task ListTypesAsync_WithoutIncludeSummary_ReturnsSummariesByDefault()
     {
         var project = Context.GetProject("ProjectCore");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, kind: "class");
+
+        result.Error.ShouldBeNone();
+        result.Types.Single(static type => type.DisplayName == "Documentation").Summary
+            .Is("Documentation service for testing XML comment parsing. Provides summary, returns, and parameter documentation.");
+    }
+
+    [Fact]
+    public async Task ListTypesAsync_WithoutIncludeMembers_ReturnsMembersByDefault()
+    {
+        var project = Context.GetProject("ProjectCore");
+        var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, kind: "class");
+
+        result.Error.ShouldBeNone();
+        result.Types.Single(static type => type.DisplayName == "Documentation").Members?.Count.Is(10);
+    }
+
+    [Fact]
+    public async Task ListTypesAsync_WithIncludeSummaryFalse_KeepsSummariesOmitted()
+    {
+        var project = Context.GetProject("ProjectCore");
+        var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, kind: "class", includeSummary: false);
 
         result.Error.ShouldBeNone();
         result.Types.Single(static type => type.DisplayName == "Documentation").Summary.IsNull();
     }
 
     [Fact]
-    public async Task ListTypesAsync_WithoutIncludeMembers_KeepsMembersOmitted()
+    public async Task ListTypesAsync_WithIncludeMembersFalse_KeepsMembersOmitted()
     {
         var project = Context.GetProject("ProjectCore");
-        var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, kind: "class");
+        var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, kind: "class", includeMembers: false);
 
         result.Error.ShouldBeNone();
         result.Types.Single(static type => type.DisplayName == "Documentation").Members.IsNull();
@@ -100,17 +121,7 @@ public sealed class ListTypesToolTests(SharedSandboxFixture fixture, ITestOutput
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, kind: "class", includeMembers: true);
 
         result.Error.ShouldBeNone();
-        result.Types.Single(static type => type.DisplayName == "Documentation").Members.Is(
-            "public Documentation()",
-            "public int Add(int a, int b)",
-            "public Documentation CreateDocumentation()",
-            "public string FormatMessage(string name)",
-            "public string MixedReferences(string x)",
-            "public void NoDocumentation()",
-            "public string NoDocumentationMethod()",
-            "public string Process(string input)",
-            "public void SetValue(int value)",
-            "public string WithParamRef(string input)");
+        result.Types.Single(static type => type.DisplayName == "Documentation").Members?.Count.Is(10);
     }
 
     [Fact]

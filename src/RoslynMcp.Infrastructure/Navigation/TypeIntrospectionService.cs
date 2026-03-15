@@ -41,7 +41,7 @@ internal sealed class TypeIntrospectionService : ITypeIntrospectionService
         }
 
         var unique = new Dictionary<string, SymbolDescriptor>(StringComparer.Ordinal);
-        var rootId = SymbolIdentity.CreateId(typeSymbol.OriginalDefinition);
+        var rootId = typeSymbol.OriginalDefinition.CreateId();
         var projects = solution.Projects.ToImmutableHashSet();
 
         if (typeSymbol.TypeKind == TypeKind.Interface)
@@ -128,7 +128,7 @@ internal sealed class TypeIntrospectionService : ITypeIntrospectionService
         while (current != null)
         {
             var normalized = current.OriginalDefinition;
-            result[SymbolIdentity.CreateId(normalized)] = normalized;
+            result[normalized.CreateId()] = normalized;
             if (!includeTransitive)
             {
                 break;
@@ -148,7 +148,7 @@ internal sealed class TypeIntrospectionService : ITypeIntrospectionService
         foreach (var iface in interfaces)
         {
             var normalized = iface.OriginalDefinition;
-            result[SymbolIdentity.CreateId(normalized)] = normalized;
+            result[normalized.CreateId()] = normalized;
         }
 
         return result.Values.ToArray();
@@ -171,9 +171,9 @@ internal sealed class TypeIntrospectionService : ITypeIntrospectionService
             {
                 var normalizedCandidate = symbol.OriginalDefinition;
                 var directBaseMatch = normalizedCandidate.BaseType != null &&
-                                      string.Equals(SymbolIdentity.CreateId(normalizedCandidate.BaseType.OriginalDefinition), rootId, StringComparison.Ordinal);
+                                      string.Equals(normalizedCandidate.BaseType.OriginalDefinition.CreateId(), rootId, StringComparison.Ordinal);
                 var directInterfaceMatch = normalizedCandidate.Interfaces.Any(iface =>
-                    string.Equals(SymbolIdentity.CreateId(iface.OriginalDefinition), rootId, StringComparison.Ordinal));
+                    string.Equals(iface.OriginalDefinition.CreateId(), rootId, StringComparison.Ordinal));
 
                 if (!directBaseMatch && !directInterfaceMatch)
                 {
@@ -182,7 +182,7 @@ internal sealed class TypeIntrospectionService : ITypeIntrospectionService
             }
 
             var normalized = symbol.OriginalDefinition;
-            var id = SymbolIdentity.CreateId(normalized);
+            var id = normalized.CreateId();
             unique[id] = normalized.ToSymbolDescriptor();
         }
     }

@@ -158,7 +158,7 @@ internal sealed class NavigationCallGraphQueryService(
 
             var nodes = new HashSet<string>(StringComparer.Ordinal)
             {
-                SymbolIdentity.CreateId(symbol.OriginalDefinition ?? symbol).ToExternal()
+                (symbol.OriginalDefinition ?? symbol).CreateId().ToExternal()
             };
 
             foreach (var edge in orderedEdges)

@@ -70,7 +70,7 @@ public static partial class CodeUnderstandingExtensions
                 if (kind == null)
                     continue;
 
-                var key = SymbolIdentity.CreateId(member);
+                var key = member.CreateId();
 
                 if (seen.Add(key))
                     builder.Add(member);
@@ -144,36 +144,32 @@ public static partial class CodeUnderstandingExtensions
             if (member.ToMemberKind() == null)
                 return null;
 
-            return $"{member.DeclaredAccessibility.NormalizeAccessibility()} {member.ToLightweightMemberSignature()}";
+            return $"{member.CreateId().ToExternal()}: {member.DeclaredAccessibility.NormalizeAccessibility()} {member.ToLightweightMemberSignature()}";
         }
 
-        public string ToLightweightMemberSignature()
-            => member switch
-            {
-                IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.StaticConstructor } constructor
-                    => $"{constructor.ContainingType.ToReadableTypeName()}({FormatParameters(constructor.Parameters)})",
-                IMethodSymbol method
-                    => FormatMethodSignature(method),
-                IPropertySymbol property
-                    => $"{property.Type.ToReadableTypeReference(includeNamespaces: false)} {FormatPropertyName(property)} {{ {FormatPropertyAccessors(property)} }}",
-                IFieldSymbol field
-                    => $"{field.Type.ToReadableTypeReference(includeNamespaces: false)} {field.Name}",
-                IEventSymbol @event
-                    => $"event {@event.Type.ToReadableTypeReference(includeNamespaces: false)} {@event.Name}",
-                _ => member.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
-            };
+        public string ToLightweightMemberSignature() => member switch
+        {
+            IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.StaticConstructor } constructor
+                => $"{constructor.ContainingType.ToReadableTypeName()}({FormatParameters(constructor.Parameters)})",
+            IMethodSymbol method
+                => FormatMethodSignature(method),
+            IPropertySymbol property
+                => $"{property.Type.ToReadableTypeReference(includeNamespaces: false)} {FormatPropertyName(property)} {{ {FormatPropertyAccessors(property)} }}",
+            IFieldSymbol field
+                => $"{field.Type.ToReadableTypeReference(includeNamespaces: false)} {field.Name}",
+            IEventSymbol @event
+                => $"event {@event.Type.ToReadableTypeReference(includeNamespaces: false)} {@event.Name}",
+            _ => member.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
+        };
     }
 
     private static string FormatMethodSignature(IMethodSymbol method)
     {
         if (method.MethodKind is MethodKind.UserDefinedOperator or MethodKind.Conversion)
-        {
             return method.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-        }
 
-        var typeParameters = method.TypeParameters.Length == 0
-            ? string.Empty
-            : $"<{string.Join(", ", method.TypeParameters.Select(static parameter => parameter.Name))}>";
+        var typeParameters = method.TypeParameters.Length == 0 ? string.Empty :
+            $"<{string.Join(", ", method.TypeParameters.Select(static parameter => parameter.Name))}>";
 
         return $"{method.ReturnType.ToReadableTypeReference(includeNamespaces: false)} {method.Name}{typeParameters}({FormatParameters(method.Parameters)})";
     }
@@ -218,12 +214,8 @@ public static partial class CodeUnderstandingExtensions
         {
             foreach (var syntaxReference in symbol.DeclaringSyntaxReferences)
             {
-                var syntax = syntaxReference.GetSyntax();
-                if (syntax is Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax typeDeclaration
-                    && typeDeclaration.Modifiers.Any(modifier => modifier.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword)))
-                {
+                if (syntaxReference.GetSyntax() is Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax typeDeclaration && typeDeclaration.Modifiers.Any(modifier => modifier.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword)))
                     return true;
-                }
             }
 
             return false;
@@ -243,15 +235,30 @@ public static partial class CodeUnderstandingExtensions
                 _ => null
             };
         }
+
+        public string ToReadableQualifiedTypeName()
+        {
+            var segments = new List<string>();
+            var ns = symbol.ContainingNamespace.NormalizeNamespace();
+            if (!string.IsNullOrEmpty(ns))
+                segments.Add(ns);
+
+            var typeStack = new Stack<INamedTypeSymbol>();
+            for (var current = symbol; current != null; current = current.ContainingType)
+                typeStack.Push(current);
+
+            while (typeStack.Count > 0)
+                segments.Add(typeStack.Pop().ToReadableTypeName());
+
+            return string.Join(".", segments);
+        }
     }
 
     public static (string FilePath, int? Line, int? Column) GetDeclarationPosition(this ISymbol symbol)
     {
         var location = symbol.Locations.FirstOrDefault(static l => l.IsInSource);
         if (location == null)
-        {
             return (string.Empty, null, null);
-        }
 
         var span = location.GetLineSpan();
         var start = span.StartLinePosition;
@@ -336,9 +343,7 @@ public static partial class CodeUnderstandingExtensions
     internal static IReadOnlyList<QualifiedNameSegment> GetQualifiedContainerSegments(this ISymbol symbol)
     {
         if (symbol.ContainingType != null)
-        {
             return symbol.ContainingType.GetQualifiedTypeSegments(includeSelf: true);
-        }
 
         var segments = new Stack<QualifiedNameSegment>();
         var namespaceSymbol = symbol.ContainingNamespace;
@@ -394,7 +399,7 @@ public static partial class CodeUnderstandingExtensions
         public SymbolReference ToSymbolReference()
         {
             var (filePath, line, column) = symbol.GetDeclarationPosition();
-            var internalSymbolId = SymbolIdentity.CreateId(symbol);
+            var internalSymbolId = symbol.CreateId();
             return new SymbolReference(
                 internalSymbolId.ToExternal(),
                 symbol.ToReadableHandle(),
@@ -428,23 +433,6 @@ public static partial class CodeUnderstandingExtensions
                 reference.QualifiedDisplayName,
                 reference);
         }
-    }
-
-    public static string ToReadableQualifiedTypeName(this INamedTypeSymbol type)
-    {
-        var segments = new List<string>();
-        var ns = type.ContainingNamespace.NormalizeNamespace();
-        if (!string.IsNullOrEmpty(ns))
-            segments.Add(ns);
-
-        var typeStack = new Stack<INamedTypeSymbol>();
-        for (var current = type; current != null; current = current.ContainingType)
-            typeStack.Push(current);
-
-        while (typeStack.Count > 0)
-            segments.Add(typeStack.Pop().ToReadableTypeName());
-
-        return string.Join(".", segments);
     }
 
     public static string ToReadableTypeReference(this ITypeSymbol type, bool includeNamespaces)

@@ -6,20 +6,12 @@ using RoslynMcp.Infrastructure.Agent;
 
 namespace RoslynMcp.Infrastructure.Refactoring;
 
-internal sealed class ReplaceMethodBodyOperations
+internal sealed class ReplaceMethodBodyOperations(RefactoringOperationOrchestrator owner)
 {
-    private readonly RefactoringOperationOrchestrator _owner;
-    private readonly MethodDeclarationBuilder _builder;
-    private readonly MethodMutationTargetResolver _targetResolver;
-    private readonly DocumentDiagnosticsDeltaService _diagnosticsDeltaService;
-
-    public ReplaceMethodBodyOperations(RefactoringOperationOrchestrator owner)
-    {
-        _owner = owner ?? throw new ArgumentNullException(nameof(owner));
-        _builder = new MethodDeclarationBuilder();
-        _targetResolver = new MethodMutationTargetResolver(owner);
-        _diagnosticsDeltaService = new DocumentDiagnosticsDeltaService();
-    }
+    private readonly RefactoringOperationOrchestrator _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+    private readonly MethodDeclarationBuilder _builder = new ();
+    private readonly MethodMutationTargetResolver _targetResolver = new (owner);
+    private readonly DocumentDiagnosticsDeltaService _diagnosticsDeltaService = new ();
 
     public async Task<ReplaceMethodBodyResult> ReplaceMethodBodyAsync(ReplaceMethodBodyRequest request, CancellationToken ct)
     {

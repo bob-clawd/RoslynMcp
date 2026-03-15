@@ -164,9 +164,7 @@ internal sealed class ListTypesHandler(
             : selectedVisibility.Visibility;
 
         if (ordered.Length == 0 && degradedReasons.Contains("missing_artifacts"))
-        {
             limitations.Add("Type discovery is degraded because referenced source or generated artifacts are missing from the current workspace.");
-        }
 
         if (ordered.Length == 0 && degradedReasons.Contains("compilation_unavailable"))
         {
@@ -210,6 +208,7 @@ internal sealed class ListTypesHandler(
     private static IReadOnlyList<string> GetDeclaredLightweightMembers(INamedTypeSymbol type)
     {
         return type.GetMembers()
+            .Where(member => member.DeclaredAccessibility > Accessibility.Private)
             .Select(member =>
             {
                 var (filePath, _, _) = member.GetDeclarationPosition();
@@ -230,7 +229,7 @@ internal sealed class ListTypesHandler(
             .OrderBy(static item => item.Kind, StringComparer.Ordinal)
             .ThenBy(static item => item.DisplayName, StringComparer.Ordinal)
             .ThenBy(static item => item.Signature, StringComparer.Ordinal)
-            .ThenBy(static item => SymbolIdentity.CreateId(item.Member), StringComparer.Ordinal)
+            .ThenBy(static item => item.Member.CreateId(), StringComparer.Ordinal)
             .Select(static item => item.Entry!)
             .ToArray();
     }
@@ -242,19 +241,13 @@ internal sealed class ListTypesHandler(
         bool hadGeneratedFallback)
     {
         if (isDegraded)
-        {
             return ResultCompletenessStates.Degraded;
-        }
 
         if (totalCount > 0 && hadGeneratedFallback && !selectedVisibility.HasHandwritten)
-        {
             return ResultCompletenessStates.Partial;
-        }
 
         if (totalCount == 0 && hadGeneratedFallback && selectedVisibility.HasGenerated && !selectedVisibility.HasHandwritten)
-        {
             return ResultCompletenessStates.Partial;
-        }
 
         return ResultCompletenessStates.Complete;
     }

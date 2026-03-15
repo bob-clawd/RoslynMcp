@@ -20,8 +20,7 @@ public sealed class RoslynRefactoringService : IRefactoringService
 
     public RoslynRefactoringService(IRoslynSolutionAccessor solutionAccessor, ILogger<RoslynRefactoringService>? logger = null)
         : this(new RefactoringOperationOrchestrator(solutionAccessor, logger))
-    {
-    }
+    { }
 
     public Task<GetRefactoringsAtPositionResult> GetRefactoringsAtPositionAsync(GetRefactoringsAtPositionRequest request, CancellationToken ct)
         => _orchestrator.GetRefactoringsAtPositionAsync(request, ct);

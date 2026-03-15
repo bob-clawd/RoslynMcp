@@ -66,7 +66,7 @@ internal sealed class CallGraphService : ICallGraphService
         var visited = new HashSet<string>(StringComparer.Ordinal);
         var queue = new Queue<(ISymbol Symbol, int Depth)>();
 
-        visited.Add(SymbolIdentity.CreateId(resolvedRoot));
+        visited.Add(resolvedRoot.CreateId());
         queue.Enqueue((resolvedRoot, 0));
 
         while (queue.Count > 0)
@@ -85,8 +85,8 @@ internal sealed class CallGraphService : ICallGraphService
                 {
                     var normalizedCalled = info.CalledSymbol.OriginalDefinition ?? info.CalledSymbol;
                     var normalizedCaller = info.CallingSymbol.OriginalDefinition ?? info.CallingSymbol;
-                    var toId = SymbolIdentity.CreateId(normalizedCalled);
-                    var callerId = SymbolIdentity.CreateId(normalizedCaller);
+                    var toId = normalizedCalled.CreateId();
+                    var callerId = normalizedCaller.CreateId();
                     var externalToId = toId.ToExternal();
                     var externalCallerId = callerId.ToExternal();
 
@@ -118,8 +118,8 @@ internal sealed class CallGraphService : ICallGraphService
                 {
                     var normalizedCallee = callee.OriginalDefinition ?? callee;
                     var normalizedCurrent = current.OriginalDefinition ?? current;
-                    var fromId = SymbolIdentity.CreateId(normalizedCurrent);
-                    var toId = SymbolIdentity.CreateId(normalizedCallee);
+                    var fromId = normalizedCurrent.CreateId();
+                    var toId = normalizedCallee.CreateId();
                     var edge = new CallEdge(fromId.ToExternal(), toId.ToExternal(), location.ToSourceLocation(), normalizedCurrent.ToSymbolReference(), normalizedCallee.ToSymbolReference());
                     if (edgeKeys.Add(edge.GetEdgeKey()))
                     {

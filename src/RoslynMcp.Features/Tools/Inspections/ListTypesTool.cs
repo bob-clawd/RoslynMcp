@@ -25,9 +25,9 @@ public sealed class ListTypesTool(ICodeUnderstandingService codeUnderstandingSer
         string? kind = null,
         [Description("Filter by accessibility: public, internal, protected, private, protected_internal, or private_protected.")]
         string? accessibility = null,
-        [Description("When true, includes XML documentation summaries for returned type entries when available. Defaults to false.")]
+        [Description("When omitted or true, includes XML documentation summaries for returned type entries when available. Pass false to omit summaries.")]
         bool? includeSummary = null,
-        [Description("When true, includes a lightweight preview of declared members for each returned type entry. This is not full member metadata: each member is returned as a single normalized accessibility-plus-signature string, and only members declared on that type are included. Enrichment is applied only to the type entries returned on the current page. Use list_members as the detailed follow-up tool. Defaults to false.")]
+        [Description("When omitted or true, includes a lightweight preview of declared members for each returned type entry. This is not full member metadata: each member is returned as a single normalized accessibility-plus-signature string, and only members declared on that type are included. Enrichment is applied only to the type entries returned on the current page. Use list_members as the detailed follow-up tool. Pass false to omit members.")]
         bool? includeMembers = null,
         [Description("Maximum number of results to return. Defaults to 100, maximum 500.")]
         int? limit = null,

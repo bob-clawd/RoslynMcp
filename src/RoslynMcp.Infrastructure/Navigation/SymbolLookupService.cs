@@ -88,7 +88,7 @@ internal sealed class SymbolLookupService : ISymbolLookupService
 
             foreach (var symbol in symbols)
             {
-                var id = SymbolIdentity.CreateId(symbol);
+                var id = symbol.CreateId();
                 if (!unique.Add(id))
                 {
                     continue;
@@ -197,7 +197,7 @@ internal sealed class SymbolLookupService : ISymbolLookupService
                     continue;
                 }
 
-                var id = SymbolIdentity.CreateId(symbol);
+                var id = symbol.CreateId();
                 if (!unique.Add(id))
                 {
                     continue;

@@ -25,7 +25,7 @@ internal static class PolymorphicImplementationDiscovery
                 ct.ThrowIfCancellationRequested();
 
                 var normalized = NormalizeResultSymbol(candidate);
-                var key = SymbolIdentity.CreateId(normalized);
+                var key = normalized.CreateId();
                 unique[key] = normalized;
             }
         }
