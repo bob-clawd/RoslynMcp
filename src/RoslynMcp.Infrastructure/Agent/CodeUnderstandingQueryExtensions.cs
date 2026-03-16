@@ -234,12 +234,6 @@ public static partial class CodeUnderstandingExtensions
         return false;
     }
 
-    public static bool TryNormalizeDependencyDirection(this string? direction, out string normalized)
-    {
-        normalized = direction.NormalizeOptional()?.ToLowerInvariant() ?? "both";
-        return normalized is "outgoing" or "incoming" or "both";
-    }
-
     public static string? NormalizeOptional(this string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 

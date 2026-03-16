@@ -59,8 +59,7 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 | Inspection Tool          | Description                                                        |
 | ------------------------ | ------------------------------------------------------------------ |
 | **Load Solution**        | Loads a .sln/.slnx file and prepare the workspace                  |
-| **Understand Codebase**  | Quick orientation with complexity hotspots                         |
-| **List Dependencies**    | Understand project relationships                                   |
+| **Understand Projects**  | Explore project relationships, types, and deep-profile hotspots    |
 | **List Types**           | Discover all classes, interfaces, enums in a project               |
 | **List Members**         | Explore methods, properties, fields of any type                    |
 | **Resolve Symbol**       | Get canonical IDs for a single code symbol                         |

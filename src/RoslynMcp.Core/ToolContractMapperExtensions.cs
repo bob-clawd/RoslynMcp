@@ -12,7 +12,7 @@ public static class ToolContractMapperExtensions
         public LoadSolutionRequest ToLoadSolutionRequest()
             => new(NormalizeOptionalString(solutionHintPath));
 
-        public UnderstandCodebaseRequest ToUnderstandCodebaseRequest()
+        public UnderstandProjectsRequest ToUnderstandProjectsRequest()
             => new(NormalizeOptionalString(solutionHintPath));
 
         public ExplainSymbolRequest ToExplainSymbolRequest(string? path, int? line, int? column)
@@ -113,15 +113,6 @@ public static class ToolContractMapperExtensions
                 NormalizeOptionalStrings(riskLevels),
                 NormalizeOptionalStrings(categories),
                 NormalizeOptionalString(reviewMode)?.ToLowerInvariant());
-
-        public ListDependenciesRequest ToListDependenciesRequest(string? projectName,
-            string? projectId,
-            string? direction)
-            => new(
-                NormalizeOptionalString(solutionHintPath),
-                NormalizeOptionalString(projectName),
-                NormalizeOptionalString(projectId),
-                NormalizeOptionalString(direction)?.ToLowerInvariant());
 
         public FindReferencesScopedRequest ToFindReferencesScopedRequest(string? scope, string? path)
             => new(NormalizeSymbolId(solutionHintPath), NormalizeScope(scope), NormalizeOptionalString(path));

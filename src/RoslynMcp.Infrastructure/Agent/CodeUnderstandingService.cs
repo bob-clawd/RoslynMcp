@@ -9,17 +9,16 @@ namespace RoslynMcp.Infrastructure.Agent;
 
 /// <summary>
 /// Central orchestration for code understanding operations.
-/// Aggregates handlers for list_types, list_members, explain_symbol, and dependencies.
+/// Aggregates handlers for project understanding, symbol discovery, and inspections.
 /// </summary>
 internal sealed class CodeUnderstandingService : ICodeUnderstandingService
 {
-    private readonly UnderstandCodebaseHandler _understandCodebaseHandler;
+    private readonly UnderstandProjectsHandler _understandProjectsHandler;
     private readonly ListTypesHandler _listTypesHandler;
     private readonly ListMembersHandler _listMembersHandler;
     private readonly ResolveSymbolHandler _resolveSymbolHandler;
     private readonly ResolveSymbolsBatchHandler _resolveSymbolsBatchHandler;
     private readonly ExplainSymbolHandler _explainSymbolHandler;
-    private readonly ListDependenciesHandler _listDependenciesHandler;
 
     public CodeUnderstandingService(
         IRoslynSolutionAccessor solutionAccessor,
@@ -37,17 +36,16 @@ internal sealed class CodeUnderstandingService : ICodeUnderstandingService
             symbolLookupService,
             navigationService);
 
-        _understandCodebaseHandler = new UnderstandCodebaseHandler(queries, analysisService);
+        _understandProjectsHandler = new UnderstandProjectsHandler(queries, analysisService);
         _listTypesHandler = new ListTypesHandler(queries, symbolDocumentationProvider);
         _listMembersHandler = new ListMembersHandler(queries);
         _resolveSymbolHandler = new ResolveSymbolHandler(queries, symbolLookupService);
         _resolveSymbolsBatchHandler = new ResolveSymbolsBatchHandler(_resolveSymbolHandler);
         _explainSymbolHandler = new ExplainSymbolHandler(queries, navigationService, solutionAccessor, symbolLookupService, symbolDocumentationProvider);
-        _listDependenciesHandler = new ListDependenciesHandler(queries);
     }
 
-    public Task<UnderstandCodebaseResult> UnderstandCodebaseAsync(UnderstandCodebaseRequest request, CancellationToken ct)
-        => _understandCodebaseHandler.HandleAsync(request, ct);
+    public Task<UnderstandProjectsResult> UnderstandProjectsAsync(UnderstandProjectsRequest request, CancellationToken ct)
+        => _understandProjectsHandler.HandleAsync(request, ct);
 
     public Task<ExplainSymbolResult> ExplainSymbolAsync(ExplainSymbolRequest request, CancellationToken ct)
         => _explainSymbolHandler.HandleAsync(request, ct);
@@ -63,7 +61,4 @@ internal sealed class CodeUnderstandingService : ICodeUnderstandingService
 
     public Task<ResolveSymbolsBatchResult> ResolveSymbolsBatchAsync(ResolveSymbolsBatchRequest request, CancellationToken ct)
         => _resolveSymbolsBatchHandler.HandleAsync(request, ct);
-
-    public Task<ListDependenciesResult> ListDependenciesAsync(ListDependenciesRequest request, CancellationToken ct)
-        => _listDependenciesHandler.HandleAsync(request, ct);
 }
