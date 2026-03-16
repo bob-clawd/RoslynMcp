@@ -27,7 +27,7 @@ public sealed class ListTypesTool(ICodeUnderstandingService codeUnderstandingSer
         string? accessibility = null,
         [Description("When omitted or true, includes XML documentation summaries for returned type entries when available. Pass false to omit summaries.")]
         bool? includeSummary = null,
-        [Description("When omitted or true, includes a lightweight preview of declared members for each returned type entry. This is not full member metadata: each member is returned as a single normalized accessibility-plus-signature string, and only members declared on that type are included. Enrichment is applied only to the type entries returned on the current page. Use list_members as the detailed follow-up tool. Pass false to omit members.")]
+        [Description("When true, includes a lightweight preview of declared members for each returned type entry. This is not full member metadata: each member is returned as a single normalized accessibility-plus-signature string, and only members declared on that type are included. Enrichment is applied only to the type entries returned on the current page. Use list_members as the detailed follow-up tool. When omitted or false, members are omitted.")]
         bool? includeMembers = null,
         [Description("Maximum number of results to return. Defaults to 100, maximum 500.")]
         int? limit = null,

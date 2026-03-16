@@ -39,7 +39,7 @@ public static class ToolContractMapperExtensions
                 NormalizeOptionalString(kind)?.ToLowerInvariant(),
                 NormalizeOptionalString(accessibility)?.ToLowerInvariant(),
                 includeSummary ?? true,
-                includeMembers ?? true,
+                includeMembers ?? false,
                 NormalizeNonNegative(limit),
                 NormalizeNonNegative(offset));
 

@@ -116,7 +116,6 @@ internal sealed class ListTypesHandler(
                     type.CreateId().ToExternal(),
                     CreateOptionalSourceLocation(filePath, line, column),
                     kind,
-                    type.IsPartial(),
                     type.Arity > 0 ? type.Arity : null,
                     null);
                 var candidate = new TypeDiscoveryEntry(entry, type);

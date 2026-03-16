@@ -73,13 +73,13 @@ public sealed class ListTypesToolTests(SharedSandboxFixture fixture, ITestOutput
     }
 
     [Fact]
-    public async Task ListTypesAsync_WithoutIncludeMembers_ReturnsMembersByDefault()
+    public async Task ListTypesAsync_WithoutIncludeMembers_OmitsMembersByDefault()
     {
         var project = Context.GetProject("ProjectCore");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, kind: "class");
 
         result.Error.ShouldBeNone();
-        result.Types.Single(static type => type.DisplayName == "Documentation").Members?.Count.Is(10);
+        result.Types.Single(static type => type.DisplayName == "Documentation").Members.IsNull();
     }
 
     [Fact]

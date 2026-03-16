@@ -206,17 +206,6 @@ public static partial class CodeUnderstandingExtensions
 
     extension(INamedTypeSymbol symbol)
     {
-        public bool IsPartial()
-        {
-            foreach (var syntaxReference in symbol.DeclaringSyntaxReferences)
-            {
-                if (syntaxReference.GetSyntax() is Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax typeDeclaration && typeDeclaration.Modifiers.Any(modifier => modifier.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword)))
-                    return true;
-            }
-
-            return false;
-        }
-
         public string? ToTypeKind()
         {
             if (symbol.IsRecord)

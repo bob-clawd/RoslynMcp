@@ -102,7 +102,6 @@ public sealed record TypeListEntry(
     string SymbolId,
     SourceLocation? Location,
     string Kind,
-    bool IsPartial,
     int? Arity,
     string? Summary = null,
     IReadOnlyList<string>? Members = null);
