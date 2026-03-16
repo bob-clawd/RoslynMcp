@@ -31,7 +31,7 @@ dotnet tool update -g RoslynMcp
 
 ```json
   "mcp": {
-    "code inspection": {
+    "roslyn": {
       "type": "local",
       "command": [
         "roslynmcp"
