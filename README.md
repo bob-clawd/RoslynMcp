@@ -72,6 +72,7 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 | **Find Implementations** | Locate all implementations of a interface or abstract class/method |
 | **Get Type Hierarchy**   | Explore type inheritance and derived types                         |
 | **Find Code Smells**     | Detect potential issues in a file                                  |
+| **Run Tests**            | Run .NET tests for the loaded solution or a specific target        |
 
 | Mutation Tool              | Description                                                                    |
 | -------------------------- | ------------------------------------------------------------------------------ |
