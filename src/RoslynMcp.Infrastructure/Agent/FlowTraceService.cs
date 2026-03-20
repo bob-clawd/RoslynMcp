@@ -11,27 +11,31 @@ namespace RoslynMcp.Infrastructure.Agent;
 /// Traces call flow between symbols: upstream (who calls this) and downstream (what does this call).
 /// Builds call graph edges with project/namespace context.
 /// </summary>
-public sealed class FlowTraceService(INavigationService navigationService, IRoslynSolutionAccessor solutionAccessor) : IFlowTraceService
+public sealed class FlowTraceService(INavigationService navigationService, IRoslynSolutionAccessor solutionAccessor, ICurrentWorkspaceRootProvider currentWorkspaceRootProvider) : IFlowTraceService
 {
     private const string UnresolvedProjectLabel = "unresolved_project";
     private const string ProjectInferenceDegradedLabel = "project_inference_degraded";
 
     private readonly INavigationService _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
     private readonly IRoslynSolutionAccessor _solutionAccessor = solutionAccessor ?? throw new ArgumentNullException(nameof(solutionAccessor));
+    private readonly string _workspaceRoot = currentWorkspaceRootProvider?.WorkspaceRoot ?? throw new ArgumentNullException(nameof(currentWorkspaceRootProvider));
 
     public async Task<TraceFlowResult> TraceFlowAsync(TraceFlowRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
+        request = request.WithWorkspaceAbsolutePaths(_workspaceRoot);
         
         var (direction, error) = request.Direction.NormalizeFlowDirection();
         if (error != null)
-            return new TraceFlowResult(null, null, direction, Math.Max(request.Depth ?? 2, 1), null, [], null, null, null, error);
+            return new TraceFlowResult(null, null, direction, Math.Max(request.Depth ?? 2, 1), null, [], null, null, null, error)
+                .WithWorkspaceRelativePaths(_workspaceRoot);
 
         var depth = Math.Max(request.Depth ?? 2, 1);
 
         var root = await ResolveRootSymbolAsync(request, ct).ConfigureAwait(false);
         if (root.Symbol == null)
-            return new TraceFlowResult(null, null, direction, depth, null, [], null, null, null, AgentErrorInfo.Normalize(root.Error, "Call trace_flow with a resolvable symbolId or source position."));
+            return new TraceFlowResult(null, null, direction, depth, null, [], null, null, null, AgentErrorInfo.Normalize(root.Error, "Call trace_flow with a resolvable symbolId or source position."))
+                .WithWorkspaceRelativePaths(_workspaceRoot);
 
         IReadOnlyList<CallEdge> edges;
         if (string.Equals(direction, "upstream", StringComparison.Ordinal))
@@ -97,7 +101,8 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
             filteredEdges.Select(ToTraceFlowEdge).ToArray(),
             request.IncludePossibleTargets && possibleTargetEdges.Count > 0 ? possibleTargetEdges.Select(ToTraceFlowEdge).ToArray() : null,
             transitions.Length == 0 ? null : transitions,
-            rootUncertaintyCategories.Count == 0 ? null : rootUncertaintyCategories.OrderBy(static category => category, StringComparer.Ordinal).ToArray());
+            rootUncertaintyCategories.Count == 0 ? null : rootUncertaintyCategories.OrderBy(static category => category, StringComparer.Ordinal).ToArray())
+            .WithWorkspaceRelativePaths(_workspaceRoot);
     }
 
     private static IReadOnlyList<CallEdge> BuildPossibleTargetEdges(IReadOnlyList<CallEdge> edges)

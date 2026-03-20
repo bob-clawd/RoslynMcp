@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
+using RoslynMcp.Core;
 using RoslynMcp.Core.Models;
 using RoslynMcp.Infrastructure.Agent;
 using System.Collections.Immutable;
@@ -517,13 +518,14 @@ internal static class RefactoringOperationExtensions
                 group.Select(static location => new ReferencePosition(location.Line, location.Column)).ToArray()))
             .ToArray();
 
-    public static FormatDocumentResult CreateFormatDocumentErrorResult(string path, string code, string message, params (string Key, string? Value)[] details)
-        => new(path, false, CreateError(code, message, details));
+    public static FormatDocumentResult CreateFormatDocumentErrorResult(string path, string workspaceRoot, string code, string message, params (string Key, string? Value)[] details)
+        => new(path.ToWorkspaceRelativePathIfPossible(workspaceRoot), false, CreateError(code, message, details).ToWorkspaceRelativePathIfPossible(workspaceRoot));
 
-    public static FormatDocumentResult CreateFormatDocumentErrorResult(string path, ErrorInfo? error)
+    public static FormatDocumentResult CreateFormatDocumentErrorResult(string path, string workspaceRoot, ErrorInfo? error)
     {
-        var safeError = error ?? new ErrorInfo(Core.ErrorCodes.InternalError, "An unknown error occurred while formatting the document.");
-        return new FormatDocumentResult(path, false, safeError);
+        var safeError = (error ?? new ErrorInfo(Core.ErrorCodes.InternalError, "An unknown error occurred while formatting the document."))
+            .ToWorkspaceRelativePathIfPossible(workspaceRoot);
+        return new FormatDocumentResult(path.ToWorkspaceRelativePathIfPossible(workspaceRoot), false, safeError);
     }
 
     public static AddMethodResult CreateAddMethodErrorResult(string targetTypeSymbolId, string code, string message, params (string Key, string? Value)[] details)

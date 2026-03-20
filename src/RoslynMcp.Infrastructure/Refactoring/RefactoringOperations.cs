@@ -841,11 +841,12 @@ internal sealed class DocumentFormattingOperations
 
         try
         {
-            var requestedPath = request.Path.Trim();
+            var workspaceRoot = _owner._workspaceRoot;
+            var requestedPath = request.Path.Trim().ToWorkspaceAbsolutePath(workspaceRoot);
             var (solution, version, error) = await _owner.TryGetSolutionWithVersionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(requestedPath, error);
+                return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(requestedPath, workspaceRoot, error);
             }
 
             var document = solution.FindDocument(requestedPath);
@@ -853,6 +854,7 @@ internal sealed class DocumentFormattingOperations
             {
                 return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(
                     requestedPath,
+                    workspaceRoot,
                     ErrorCodes.PathOutOfScope,
                     "The provided path does not match a document in the selected solution scope.",
                     ("path", requestedPath),
@@ -872,6 +874,7 @@ internal sealed class DocumentFormattingOperations
 
                     return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(
                         requestedPath,
+                        workspaceRoot,
                         ErrorCodes.StaleWorkspaceSnapshot,
                         RefactoringOperationOrchestrator.CleanupStaleWorkspaceMessage,
                         ("operation", "format_document"),
@@ -884,6 +887,7 @@ internal sealed class DocumentFormattingOperations
 
                 return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(
                     requestedPath,
+                    workspaceRoot,
                     ErrorCodes.StaleWorkspaceSnapshot,
                     RefactoringOperationOrchestrator.CleanupStaleWorkspaceMessage,
                     ("operation", "format_document"),
@@ -895,7 +899,7 @@ internal sealed class DocumentFormattingOperations
 
             var updated = await _owner.FormatScopeAsync(solution, [document], ct).ConfigureAwait(false);
             var changedFiles = await solution.CollectChangedFilesAsync(updated, ct).ConfigureAwait(false);
-            var documentPath = document.FilePath ?? document.Name;
+            var documentPath = (document.FilePath ?? document.Name).ToWorkspaceRelativePathIfPossible(workspaceRoot);
             if (changedFiles.Count == 0)
             {
                 return new FormatDocumentResult(documentPath, false);
@@ -904,13 +908,14 @@ internal sealed class DocumentFormattingOperations
             var (applyVersion, versionError) = await _owner._solutionAccessor.GetWorkspaceVersionAsync(ct).ConfigureAwait(false);
             if (versionError != null)
             {
-                return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(documentPath, versionError);
+                return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(documentPath, workspaceRoot, versionError);
             }
 
             if (applyVersion != version)
             {
                 return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(
                     documentPath,
+                    workspaceRoot,
                     ErrorCodes.WorkspaceChanged,
                     "Workspace changed during format_document execution.",
                     ("path", documentPath),
@@ -922,6 +927,7 @@ internal sealed class DocumentFormattingOperations
             {
                 return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(
                     documentPath,
+                    workspaceRoot,
                     applyError ?? RefactoringOperationExtensions.CreateError(
                         ErrorCodes.InternalError,
                         "Failed to apply formatted document changes.",
@@ -938,11 +944,14 @@ internal sealed class DocumentFormattingOperations
         catch (Exception ex)
         {
             _owner._logger.LogError(ex, "FormatDocument failed for {Path}", request.Path);
+            var workspaceRoot = _owner._workspaceRoot;
+            var outwardPath = request.Path.ToWorkspaceRelativePathIfPossible(workspaceRoot);
             return RefactoringOperationExtensions.CreateFormatDocumentErrorResult(
-                request.Path,
+                outwardPath,
+                workspaceRoot,
                 ErrorCodes.InternalError,
-                $"Failed to format document '{request.Path}': {ex.Message}",
-                ("path", request.Path),
+                $"Failed to format document '{outwardPath}': {ex.Message}",
+                ("path", outwardPath),
                 ("operation", "format_document"));
         }
     }

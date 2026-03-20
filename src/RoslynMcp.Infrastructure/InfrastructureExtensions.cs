@@ -17,6 +17,8 @@ public static class InfrastructureExtensions
 	    public IServiceCollection AddInfrastructure() => services
 		    .AddSingleton<ISessionStateStore, SessionStateStore>()
 		    .AddSingleton<IWorkspaceRootDiscovery, WorkspaceRootDiscovery>()
+		    .AddSingleton<ICurrentWorkspaceRootProvider>(provider =>
+		        new CurrentWorkspaceRootProvider(provider.GetRequiredService<IWorkspaceRootDiscovery>()))
 		    .AddSingleton<ISolutionPathResolver, SolutionPathResolver>()
 		    .AddSingleton<IMSBuildRegistrationGate, MsBuildRegistrationGate>()
 		    .AddSingleton<ISessionWorkspaceLoader, SessionWorkspaceLoader>()

@@ -16,7 +16,7 @@ namespace RoslynMcp.Infrastructure.Agent;
 /// Finds code smells in the codebase using Roslynator analyzers.
 /// Aggregates diagnostics by risk level (low, review_required, high) and category.
 /// </summary>
-public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAccessor, IRefactoringService refactoringService)
+public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAccessor, IRefactoringService refactoringService, ICurrentWorkspaceRootProvider currentWorkspaceRootProvider)
     : ICodeSmellFindingService
 {
     private const int MaximumScannedAnchors = 500;
@@ -33,16 +33,18 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
 
     private readonly IRoslynSolutionAccessor _solutionAccessor = solutionAccessor ?? throw new ArgumentNullException(nameof(solutionAccessor));
     private readonly IRefactoringService _refactoringService = refactoringService ?? throw new ArgumentNullException(nameof(refactoringService));
+    private readonly string _workspaceRoot = currentWorkspaceRootProvider?.WorkspaceRoot ?? throw new ArgumentNullException(nameof(currentWorkspaceRootProvider));
     private readonly RoslynatorAnalyzerCatalog _analyzerCatalog = new();
 
     public async Task<FindCodeSmellsResult> FindCodeSmellsAsync(FindCodeSmellsRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
+        request = request.WithWorkspaceAbsolutePaths(_workspaceRoot);
 
         var (filters, validationError) = ValidateRequest(request);
         if (validationError is not null)
-            return validationError;
+            return validationError.WithWorkspaceRelativePaths(_workspaceRoot);
 
         var path = filters!.Path;
 
@@ -55,7 +57,8 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
                 null,
                 UnknownContext,
                 AgentErrorInfo.Normalize(solutionError,
-                    "Call load_solution first to select a solution before finding code smells."));
+                    "Call load_solution first to select a solution before finding code smells."))
+                .WithWorkspaceRelativePaths(_workspaceRoot);
         }
 
         var matchingDocuments = solution.Projects
@@ -72,7 +75,8 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
                 "Use a source document path that exists in the loaded solution.",
                 ("field", "path"),
                 ("provided", path));
-            return new FindCodeSmellsResult(EmptySummary, Array.Empty<CodeSmellFindingEntry>(), null, UnknownContext, error);
+            return new FindCodeSmellsResult(EmptySummary, Array.Empty<CodeSmellFindingEntry>(), null, UnknownContext, error)
+                .WithWorkspaceRelativePaths(_workspaceRoot);
         }
 
         if (matchingDocuments.Length > 1)
@@ -83,7 +87,8 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
                 "Provide a unique source document path from the loaded solution.",
                 ("field", "path"),
                 ("provided", path));
-            return new FindCodeSmellsResult(EmptySummary, Array.Empty<CodeSmellFindingEntry>(), null, UnknownContext, error);
+            return new FindCodeSmellsResult(EmptySummary, Array.Empty<CodeSmellFindingEntry>(), null, UnknownContext, error)
+                .WithWorkspaceRelativePaths(_workspaceRoot);
         }
 
         var document = matchingDocuments[0];
@@ -169,7 +174,8 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
             aggregatedResult.Summary,
             aggregatedResult.Findings,
             warnings.Count == 0 ? null : warnings,
-            CreateContext(document.FilePath, warnings));
+            CreateContext(document.FilePath, warnings))
+            .WithWorkspaceRelativePaths(_workspaceRoot);
     }
 
     private async Task<IReadOnlyList<AnchorPosition>> CollectAnchorsAsync(Document document, List<string> warnings, CancellationToken ct)

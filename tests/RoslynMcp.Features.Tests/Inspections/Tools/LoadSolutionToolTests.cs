@@ -30,9 +30,24 @@ public sealed class LoadSolutionToolTests(SharedSandboxFixture fixture, ITestOut
     }
 }
 
+[Collection(CurrentDirectorySensitiveCollection.Name)]
 public sealed class LoadSolutionToolIsolatedTests(ITestOutputHelper output)
     : IsolatedToolTests<LoadSolutionTool>(output)
 {
+    [Fact]
+    public async Task LoadSolutionAsync_WithWorkspaceRelativeSolutionPath_ReturnsRelativePaths()
+    {
+        await using var context = await WorkspaceRootSandboxContext.CreateAsync();
+        var sut = context.GetRequiredService<LoadSolutionTool>();
+
+        var result = await sut.ExecuteAsync(CancellationToken.None, "TestSolution.sln");
+
+        result.Error.ShouldBeNone();
+        result.SelectedSolutionPath.Is("TestSolution.sln");
+        result.WorkspaceId.Is("TestSolution.sln");
+        result.Projects.Any(project => project.Path == Path.Combine("ProjectApp", "ProjectApp.csproj")).IsTrue();
+    }
+
     [Fact]
     public async Task LoadSolutionAsync_WithSlnxSolutionPath_LoadsRepositorySolution()
     {
@@ -90,5 +105,39 @@ public sealed class LoadSolutionToolIsolatedTests(ITestOutputHelper output)
         result.Readiness.State.Is(WorkspaceReadinessStates.DegradedMissingArtifacts);
         result.Readiness.DegradedReasons.IsContaining("missing_artifacts");
         result.Readiness.RecommendedNextStep.IsNotNull();
+    }
+
+    private sealed class WorkspaceRootSandboxContext : SandboxContext
+    {
+        public static async Task<WorkspaceRootSandboxContext> CreateAsync(CancellationToken cancellationToken = default)
+        {
+            var context = new WorkspaceRootSandboxContext();
+            try
+            {
+                var sandbox = TestSolutionSandbox.Create(context.CanonicalTestSolutionDirectory);
+                using var currentDirectory = new CurrentDirectoryScope(sandbox.SolutionRoot);
+                await context.InitializeSandboxAsync(sandbox, cancellationToken).ConfigureAwait(false);
+                return context;
+            }
+            catch
+            {
+                await context.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
+        }
+    }
+
+    private sealed class CurrentDirectoryScope : IDisposable
+    {
+        private readonly string _originalDirectory;
+
+        public CurrentDirectoryScope(string currentDirectory)
+        {
+            _originalDirectory = Directory.GetCurrentDirectory();
+            Directory.SetCurrentDirectory(currentDirectory);
+        }
+
+        public void Dispose()
+            => Directory.SetCurrentDirectory(Directory.Exists(_originalDirectory) ? _originalDirectory : AppContext.BaseDirectory);
     }
 }

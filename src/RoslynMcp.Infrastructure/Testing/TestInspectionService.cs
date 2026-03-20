@@ -8,15 +8,18 @@ namespace RoslynMcp.Infrastructure.Testing;
 internal sealed class TestInspectionService(
     IRoslynSolutionAccessor solutionAccessor,
     ITestProcessRunner testProcessRunner,
-    ITestResultInterpreter testResultInterpreter) : ITestInspectionService
+    ITestResultInterpreter testResultInterpreter,
+    ICurrentWorkspaceRootProvider currentWorkspaceRootProvider) : ITestInspectionService
 {
     private readonly IRoslynSolutionAccessor _solutionAccessor = solutionAccessor ?? throw new ArgumentNullException(nameof(solutionAccessor));
     private readonly ITestProcessRunner _testProcessRunner = testProcessRunner ?? throw new ArgumentNullException(nameof(testProcessRunner));
     private readonly ITestResultInterpreter _testResultInterpreter = testResultInterpreter ?? throw new ArgumentNullException(nameof(testResultInterpreter));
+    private readonly string _workspaceRoot = currentWorkspaceRootProvider?.WorkspaceRoot ?? throw new ArgumentNullException(nameof(currentWorkspaceRootProvider));
 
     public async Task<RunTestsResult> RunTestsAsync(RunTestsRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
+        request = request.WithWorkspaceAbsolutePaths(_workspaceRoot);
 
         try
         {
@@ -25,18 +28,18 @@ internal sealed class TestInspectionService(
             var (solution, solutionError) = await _solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
             if (solutionError is not null)
             {
-                return InfrastructureFailure(solutionError);
+                return InfrastructureFailure(solutionError).WithWorkspaceRelativePaths(_workspaceRoot);
             }
 
             if (solution?.FilePath is not { Length: > 0 } solutionPath)
             {
-                return InfrastructureFailure(new ErrorInfo(ErrorCodes.SolutionNotSelected, "No solution has been selected."));
+                return InfrastructureFailure(new ErrorInfo(ErrorCodes.SolutionNotSelected, "No solution has been selected.")).WithWorkspaceRelativePaths(_workspaceRoot);
             }
 
             var targetResolution = ResolveTarget(solutionPath, request.Target);
             if (targetResolution.Error is not null)
             {
-                return InvalidInput(targetResolution.Error);
+                return InvalidInput(targetResolution.Error).WithWorkspaceRelativePaths(_workspaceRoot);
             }
 
             var artifacts = CreateArtifacts();
@@ -48,7 +51,7 @@ internal sealed class TestInspectionService(
                     .ConfigureAwait(false);
 
                 var trxReports = DiscoverTrxReports(artifacts.ResultsDirectory);
-                return _testResultInterpreter.Interpret(processResult, trxReports);
+                return _testResultInterpreter.Interpret(processResult, trxReports).WithWorkspaceRelativePaths(_workspaceRoot);
             }
             finally
             {
@@ -61,11 +64,12 @@ internal sealed class TestInspectionService(
                 RunTestOutcomes.Cancelled,
                 null,
                 Array.Empty<TestFailureGroup>(),
-                Summary: "Test execution was cancelled.");
+                Summary: "Test execution was cancelled.")
+                .WithWorkspaceRelativePaths(_workspaceRoot);
         }
         catch (Exception ex)
         {
-            return InfrastructureFailure(new ErrorInfo(ErrorCodes.InternalError, ex.Message));
+            return InfrastructureFailure(new ErrorInfo(ErrorCodes.InternalError, ex.Message)).WithWorkspaceRelativePaths(_workspaceRoot);
         }
     }
 

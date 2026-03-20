@@ -1,3 +1,4 @@
+using RoslynMcp.Core;
 using RoslynMcp.Core.Contracts;
 using RoslynMcp.Core.Models;
 using RoslynMcp.Infrastructure.Workspace;
@@ -16,12 +17,14 @@ public sealed class RoslynNavigationService : INavigationService
     private readonly NavigationReferenceQueryService _referenceQueries;
     private readonly NavigationTypeHierarchyService _typeHierarchyQueries;
     private readonly NavigationCallGraphQueryService _callGraphQueries;
+    private readonly string _workspaceRoot;
 
     public RoslynNavigationService(IRoslynSolutionAccessor solutionAccessor,
         ISymbolLookupService symbolLookupService,
         IReferenceSearchService referenceSearchService,
         ICallGraphService callGraphService,
         ITypeIntrospectionService typeIntrospectionService,
+        ICurrentWorkspaceRootProvider currentWorkspaceRootProvider,
         ILogger<RoslynNavigationService>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(solutionAccessor);
@@ -29,6 +32,7 @@ public sealed class RoslynNavigationService : INavigationService
         ArgumentNullException.ThrowIfNull(referenceSearchService);
         ArgumentNullException.ThrowIfNull(callGraphService);
         ArgumentNullException.ThrowIfNull(typeIntrospectionService);
+        _workspaceRoot = currentWorkspaceRootProvider?.WorkspaceRoot ?? throw new ArgumentNullException(nameof(currentWorkspaceRootProvider));
 
         var safeLogger = logger ?? NullLogger<RoslynNavigationService>.Instance;
         var solutionProvider = new NavigationSolutionProvider(solutionAccessor, safeLogger);
@@ -57,13 +61,13 @@ public sealed class RoslynNavigationService : INavigationService
         => _referenceQueries.FindReferencesAsync(request, ct);
 
     public Task<FindReferencesScopedResult> FindReferencesScopedAsync(FindReferencesScopedRequest request, CancellationToken ct)
-        => _referenceQueries.FindReferencesScopedAsync(request, ct);
+        => HandleAsync(() => _referenceQueries.FindReferencesScopedAsync(request.WithWorkspaceAbsolutePaths(_workspaceRoot), ct), static (result, workspaceRoot) => result.WithWorkspaceRelativePaths(workspaceRoot));
 
     public Task<FindImplementationsResult> FindImplementationsAsync(FindImplementationsRequest request, CancellationToken ct)
-        => _referenceQueries.FindImplementationsAsync(request, ct);
+        => HandleAsync(() => _referenceQueries.FindImplementationsAsync(request, ct), static (result, workspaceRoot) => result.WithWorkspaceRelativePaths(workspaceRoot));
 
     public Task<GetTypeHierarchyResult> GetTypeHierarchyAsync(GetTypeHierarchyRequest request, CancellationToken ct)
-        => _typeHierarchyQueries.GetTypeHierarchyAsync(request, ct);
+        => HandleAsync(() => _typeHierarchyQueries.GetTypeHierarchyAsync(request, ct), static (result, workspaceRoot) => result.WithWorkspaceRelativePaths(workspaceRoot));
 
     public Task<GetSymbolOutlineResult> GetSymbolOutlineAsync(GetSymbolOutlineRequest request, CancellationToken ct)
         => _typeHierarchyQueries.GetSymbolOutlineAsync(request, ct);
@@ -76,4 +80,10 @@ public sealed class RoslynNavigationService : INavigationService
 
     public Task<GetCallGraphResult> GetCallGraphAsync(GetCallGraphRequest request, CancellationToken ct)
         => _callGraphQueries.GetCallGraphAsync(request, ct);
+
+    private async Task<TResult> HandleAsync<TResult>(Func<Task<TResult>> action, Func<TResult, string, TResult> shape)
+    {
+        var result = await action().ConfigureAwait(false);
+        return shape(result, _workspaceRoot);
+    }
 }

@@ -7,6 +7,7 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.Mutations.Tools;
 
+[Collection(CurrentDirectorySensitiveCollection.Name)]
 public sealed class FormatDocumentToolTests(ITestOutputHelper output)
     : IsolatedToolTests<FormatDocumentTool>(output)
 {
@@ -40,17 +41,17 @@ public sealed class FormatDocumentToolTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithAlreadyFormattedFile_ReturnsSuccessWithoutChanges()
+    public async Task ExecuteAsync_WithAbsoluteInWorkspacePath_ReturnsRelativeSuccessPath()
     {
-        await using var context = await CreateContextAsync();
-        var sut = GetSut(context);
+        await using var context = await WorkspaceRootSandboxContext.CreateAsync();
+        var sut = context.GetRequiredService<FormatDocumentTool>();
         var filePath = context.GetFilePath("ProjectCore", "Contracts");
         var before = await File.ReadAllTextAsync(filePath);
 
         var result = await sut.ExecuteAsync(CancellationToken.None, filePath);
 
         result.Error.ShouldBeNone();
-        result.Path.ShouldEndWithPathSuffix(Path.Combine("ProjectCore", "Contracts.cs"));
+        result.Path.Is(Path.Combine("ProjectCore", "Contracts.cs"));
         result.WasFormatted.IsFalse();
 
         var after = await File.ReadAllTextAsync(filePath);
@@ -58,23 +59,40 @@ public sealed class FormatDocumentToolTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithMisformattedFile_FormatsAndPersistsChanges()
+    public async Task ExecuteAsync_WithWorkspaceRelativeInWorkspacePath_FormatsAndPersistsChanges()
     {
-        await using var context = await CreateContextAsync();
-        var sut = GetSut(context);
+        await using var context = await WorkspaceRootSandboxContext.CreateAsync();
+        var sut = context.GetRequiredService<FormatDocumentTool>();
         var filePath = context.GetFilePath("ProjectImpl", "FormattingFixture");
         var before = await File.ReadAllTextAsync(filePath);
+        var relativePath = Path.Combine("ProjectImpl", "FormattingFixture.cs");
 
-        var result = await sut.ExecuteAsync(CancellationToken.None, filePath);
+        var result = await sut.ExecuteAsync(CancellationToken.None, relativePath);
 
         result.Error.ShouldBeNone();
-        result.Path.ShouldEndWithPathSuffix(Path.Combine("ProjectImpl", "FormattingFixture.cs"));
+        result.Path.Is(relativePath);
         result.WasFormatted.IsTrue();
 
         var after = await File.ReadAllTextAsync(filePath);
         string.Equals(after, before, StringComparison.Ordinal).IsFalse();
         after.Contains("public int Add(int left, int right)", StringComparison.Ordinal).IsTrue();
         after.Contains("return left + right;", StringComparison.Ordinal).IsTrue();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithWorkspaceRelativeMissingPath_ReturnsRelativePathOutOfScope()
+    {
+        await using var context = await WorkspaceRootSandboxContext.CreateAsync();
+        var sut = context.GetRequiredService<FormatDocumentTool>();
+        var relativePath = Path.Combine("ProjectImpl", "MissingFile.cs");
+
+        var result = await sut.ExecuteAsync(CancellationToken.None, relativePath);
+
+        result.Error.ShouldHaveCode(ErrorCodes.PathOutOfScope);
+        result.Path.Is(relativePath);
+        result.Error!.Details!.ContainsKey("path").IsTrue();
+        result.Error.Details["path"].Is(relativePath);
+        result.WasFormatted.IsFalse();
     }
 
     [Fact]
@@ -113,5 +131,38 @@ public sealed class FormatDocumentToolTests(ITestOutputHelper output)
 
         result.Error.ShouldHaveCode(ErrorCodes.StaleWorkspaceSnapshot);
         result.WasFormatted.IsFalse();
+    }
+
+    private sealed class CurrentDirectoryScope(string originalDirectory) : IDisposable
+    {
+        public static CurrentDirectoryScope Enter(string currentDirectory)
+        {
+            var originalDirectory = Directory.GetCurrentDirectory();
+            Directory.SetCurrentDirectory(currentDirectory);
+            return new CurrentDirectoryScope(originalDirectory);
+        }
+
+        public void Dispose()
+            => Directory.SetCurrentDirectory(Directory.Exists(originalDirectory) ? originalDirectory : AppContext.BaseDirectory);
+    }
+
+    private sealed class WorkspaceRootSandboxContext : SandboxContext
+    {
+        public static async Task<WorkspaceRootSandboxContext> CreateAsync(CancellationToken cancellationToken = default)
+        {
+            var context = new WorkspaceRootSandboxContext();
+            try
+            {
+                var sandbox = TestSolutionSandbox.Create(context.CanonicalTestSolutionDirectory);
+                using var currentDirectory = CurrentDirectoryScope.Enter(sandbox.SolutionRoot);
+                await context.InitializeSandboxAsync(sandbox, cancellationToken).ConfigureAwait(false);
+                return context;
+            }
+            catch
+            {
+                await context.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
+        }
     }
 }

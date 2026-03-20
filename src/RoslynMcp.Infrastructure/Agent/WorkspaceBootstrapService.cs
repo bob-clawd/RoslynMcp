@@ -1,3 +1,4 @@
+using RoslynMcp.Core;
 using RoslynMcp.Core.Contracts;
 using RoslynMcp.Core.Models;
 using RoslynMcp.Infrastructure.Workspace;
@@ -11,17 +12,19 @@ namespace RoslynMcp.Infrastructure.Agent;
 public sealed class WorkspaceBootstrapService(
     ISolutionSessionService solutionSessionService,
     IAnalysisService analysisService,
-    IRoslynSolutionAccessor solutionAccessor)
+    IRoslynSolutionAccessor solutionAccessor,
+    ICurrentWorkspaceRootProvider currentWorkspaceRootProvider)
     : IWorkspaceBootstrapService
 {
     private static readonly WorkspaceReadiness DefaultReadiness = new(WorkspaceReadinessStates.Ready, Array.Empty<string>());
+    private readonly string _workspaceRoot = currentWorkspaceRootProvider?.WorkspaceRoot ?? throw new ArgumentNullException(nameof(currentWorkspaceRootProvider));
 
     public async Task<LoadSolutionResult> LoadSolutionAsync(LoadSolutionRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
 
-        var hint = request.SolutionHintPath?.Trim();
+        var hint = request.WithWorkspaceAbsolutePaths(_workspaceRoot).SolutionHintPath?.Trim();
         var (solutionPath, discoveryError) = await ResolveSolutionPathAsync(hint, ct).ConfigureAwait(false);
         if (solutionPath == null)
         {
@@ -32,7 +35,8 @@ public sealed class WorkspaceBootstrapService(
                 Array.Empty<ProjectSummary>(),
                 new DiagnosticsSummary(0, 0, 0, 0),
                 DefaultReadiness,
-                AgentErrorInfo.Normalize(discoveryError, "Provide a valid solution path or run load_solution from a folder containing a .sln or .slnx file."));
+                AgentErrorInfo.Normalize(discoveryError, "Provide a valid solution path or run load_solution from a folder containing a .sln or .slnx file."))
+                .WithWorkspaceRelativePaths(_workspaceRoot);
         }
 
         var select = await solutionSessionService.SelectSolutionAsync(new SelectSolutionRequest(solutionPath), ct).ConfigureAwait(false);
@@ -45,7 +49,8 @@ public sealed class WorkspaceBootstrapService(
                 [],
                 new DiagnosticsSummary(0, 0, 0, 0),
                 DefaultReadiness,
-                AgentErrorInfo.Normalize(select.Error, "Provide a valid .sln or .slnx path and retry load_solution."));
+                AgentErrorInfo.Normalize(select.Error, "Provide a valid .sln or .slnx path and retry load_solution."))
+                .WithWorkspaceRelativePaths(_workspaceRoot);
         }
 
         var (solution, currentError) = await solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
@@ -79,12 +84,14 @@ public sealed class WorkspaceBootstrapService(
                 projects,
                 diagnostics,
                 readiness,
-                AgentErrorInfo.Normalize(versionError, "Retry load_solution to refresh workspace snapshot metadata."));
+                AgentErrorInfo.Normalize(versionError, "Retry load_solution to refresh workspace snapshot metadata."))
+                .WithWorkspaceRelativePaths(_workspaceRoot);
         }
 
         var workspaceId = select.SelectedSolutionPath ?? string.Empty;
         var snapshotId = workspaceVersion.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        return new LoadSolutionResult(select.SelectedSolutionPath, workspaceId, snapshotId, projects, diagnostics, readiness);
+        return new LoadSolutionResult(select.SelectedSolutionPath, workspaceId, snapshotId, projects, diagnostics, readiness)
+            .WithWorkspaceRelativePaths(_workspaceRoot);
     }
 
     private static WorkspaceReadiness AssessReadiness(Microsoft.CodeAnalysis.Solution solution, IReadOnlyList<DiagnosticItem> diagnostics)
@@ -134,7 +141,7 @@ public sealed class WorkspaceBootstrapService(
         if (IsExplicitSolutionPath(hint))
             return (hint, null);
 
-        var root = string.IsNullOrWhiteSpace(hint) ? Directory.GetCurrentDirectory() : hint;
+        var root = string.IsNullOrWhiteSpace(hint) ? _workspaceRoot : hint;
         var discovered = await solutionSessionService.DiscoverSolutionsAsync(new DiscoverSolutionsRequest(root), ct).ConfigureAwait(false);
         if (discovered.Error != null)
         {

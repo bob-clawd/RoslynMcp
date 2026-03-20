@@ -10,9 +10,23 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.Inspections.Tools;
 
+[Collection(CurrentDirectorySensitiveCollection.Name)]
 public sealed class ResolveSymbolToolTests(SharedSandboxFixture fixture, ITestOutputHelper output)
     : SharedToolTests<ResolveSymbolTool>(fixture, output)
 {
+    [Fact]
+    public async Task ResolveSymbolAsync_WithWorkspaceRelativeSourcePosition_ReturnsRelativeLocation()
+    {
+        await using var context = await WorkspaceRootSandboxContext.CreateAsync();
+        var sut = context.GetRequiredService<ResolveSymbolTool>();
+
+        var result = await sut.ExecuteAsync(CancellationToken.None, path: Path.Combine("ProjectApp", "AppOrchestrator.cs"), line: 6, column: 21);
+
+        result.Error.ShouldBeNone();
+        result.Symbol.IsNotNull();
+        result.Symbol!.Location!.FilePath.Is(Path.Combine("ProjectApp", "AppOrchestrator.cs"));
+    }
+
     [Fact]
     public async Task ResolveSymbolAsync_WithQualifiedName_ReturnsResolvedTypeSymbol()
     {
@@ -226,6 +240,40 @@ public sealed class ResolveSymbolToolTests(SharedSandboxFixture fixture, ITestOu
         json.Contains("reference", StringComparison.Ordinal).IsFalse();
         json.Contains("qualifiedDisplayName", StringComparison.Ordinal).IsFalse();
     }
+}
+
+file sealed class WorkspaceRootSandboxContext : SandboxContext
+{
+    public static async Task<WorkspaceRootSandboxContext> CreateAsync(CancellationToken cancellationToken = default)
+    {
+        var context = new WorkspaceRootSandboxContext();
+        try
+        {
+            var sandbox = TestSolutionSandbox.Create(context.CanonicalTestSolutionDirectory);
+            using var currentDirectory = new CurrentDirectoryScope(sandbox.SolutionRoot);
+            await context.InitializeSandboxAsync(sandbox, cancellationToken).ConfigureAwait(false);
+            return context;
+        }
+        catch
+        {
+            await context.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+}
+
+file sealed class CurrentDirectoryScope : IDisposable
+{
+    private readonly string _originalDirectory;
+
+    public CurrentDirectoryScope(string currentDirectory)
+    {
+        _originalDirectory = Directory.GetCurrentDirectory();
+        Directory.SetCurrentDirectory(currentDirectory);
+    }
+
+    public void Dispose()
+        => Directory.SetCurrentDirectory(Directory.Exists(_originalDirectory) ? _originalDirectory : AppContext.BaseDirectory);
 }
 
 file static class AssertionExtensions

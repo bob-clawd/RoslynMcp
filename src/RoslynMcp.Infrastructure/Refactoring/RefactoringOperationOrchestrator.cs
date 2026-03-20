@@ -62,6 +62,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
     internal readonly ActionIdentityService _actionIdentityService;
     internal readonly RefactoringPolicyService _refactoringPolicyService;
     internal readonly RoslynatorProviderCatalogService _providerCatalogService;
+    internal readonly string _workspaceRoot;
     private readonly RefactoringActionOperations _refactoringActions;
     private readonly CodeFixOperations _codeFixOperations;
     private readonly CleanupOperations _cleanupOperations;
@@ -73,9 +74,11 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
     private readonly ReplaceMethodBodyOperations _replaceMethodBodyOperations;
 
     public RefactoringOperationOrchestrator(IRoslynSolutionAccessor solutionAccessor,
+        ICurrentWorkspaceRootProvider currentWorkspaceRootProvider,
         ILogger<RoslynRefactoringService>? logger = null)
     {
         _solutionAccessor = solutionAccessor ?? throw new ArgumentNullException(nameof(solutionAccessor));
+        _workspaceRoot = currentWorkspaceRootProvider?.WorkspaceRoot ?? throw new ArgumentNullException(nameof(currentWorkspaceRootProvider));
         _logger = logger ?? NullLogger<RoslynRefactoringService>.Instance;
         _actionIdentityService = new ActionIdentityService();
         _refactoringPolicyService = new RefactoringPolicyService();
