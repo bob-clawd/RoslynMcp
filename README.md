@@ -54,41 +54,16 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 - **Call graph tracing** — See how code flows through your system
 - **Code smell detection** — Identifies potential issues using [Roslynator](https://github.com/dotnet/roslynator) analyzers
 
-## What You Can Use It For
+## Recommended Workflow
 
-| Inspection Tool          | Description                                                        |
-| ------------------------ | ------------------------------------------------------------------ |
-| **Load Solution**        | Loads a .sln/.slnx file and prepare the workspace                  |
-| **Understand Projects**  | Explore project relationships, types, and deep-profile hotspots    |
-| **List Types**           | Discover all classes, interfaces, enums in a project               |
-| **List Members**         | Explore methods, properties, fields of any type                    |
-| **Resolve Symbol**       | Get canonical IDs for a single code symbol                         |
-| **Resolve Symbols**      | Resolve multiple symbols in one round-trip                         |
-| **Explain Symbol**       | Understand what a symbol does and where it's used                  |
-| **Trace Call Flow**      | See upstream callers or downstream callees                         |
-| **Find Callers**         | Return only immediate direct upstream callers                      |
-| **Find Callees**         | Return only immediate direct downstream callees                    |
-| **Find Usages**          | Locate all references to a type/member                             |
-| **Find Implementations** | Locate all implementations of a interface or abstract class/method |
-| **Get Type Hierarchy**   | Explore type inheritance and derived types                         |
-| **Find Code Smells**     | Detect potential issues in a file                                  |
-| **Run Tests**            | Run .NET tests for the loaded solution or a specific target        |
+In practice, the usual flow is:
 
-| Mutation Tool              | Description                                                                    |
-| -------------------------- | ------------------------------------------------------------------------------ |
-| **Add Method**             | Add a helper or overload to an existing type using symbol-aware insertion      |
-| **Replace Method**         | Replace a full method declaration when name, signature, or modifiers must move |
-| **Replace Method Body**    | Change only method logic while preserving the existing declaration shape        |
-| **Delete Method**          | Remove an obsolete method or disposable helper by exact symbol target          |
-| **Rename Symbol**          | Rename operation for types, methods, etc.                                      |
-| **Format Document**        | Format a C# source file using the solution's settings                          |
+1. `load_solution`
+2. `load_project`
+3. `load_type`
+4. `load_member`
+5. `run_tests`
 
-### When To Use Mutation Tools vs Text Edits
+This keeps navigation semantic and symbol-aware without relying on text-only search.
 
-Use mutation tools when an agent needs a precise, symbol-aware edit and wants Roslyn to target the exact declaration instead of relying on file positions or text matching. They are especially useful for overloaded methods, signature changes, targeted logic replacement, and cleanup work where touching the wrong method would be expensive.
-
-Prefer normal text edits when the task spans multiple nearby code regions, when the desired syntax is not well expressed by the mutation API, or when the agent is still shaping code quickly and does not yet need symbol-level precision.
-
-In practice, the best workflow is often hybrid: resolve the symbol with Roslyn, use mutation tools for the risky surgical edit, and fall back to normal file editing for broader reshaping around it.
-
-
+The full tool descriptions can be [found here](https://github.com/chrismo80/RoslynMcp/blob/main/TOOLS.md)
