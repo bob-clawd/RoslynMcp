@@ -47,22 +47,22 @@ public sealed class McpTool(
         if (symbol is ITypeSymbol)
             return Result.AsError("no type symbol please");
 
-        var callersTask = LoadCallers(symbol, solution, cancellationToken);
-        var calleesTask = LoadCallees(symbol, solution, cancellationToken);
-        var overridesTask = LoadOverrides(symbol, solution, cancellationToken);
-        var implementationsTask = LoadImplementations(symbol, solution, cancellationToken);
+        var callersTask = SymbolFinder.FindCallersAsync(symbol, solution, cancellationToken);
+        var calleesTask = CollectCalleesAsync(symbol, solution, cancellationToken);
+        var overridesTask = SymbolFinder.FindOverridesAsync(symbol, solution, null, cancellationToken);
+        var implementationsTask = SymbolFinder.FindImplementationsAsync(symbol, solution, null, cancellationToken);
         
         try
         {
-            await Task.WhenAll(callersTask, calleesTask, overridesTask, implementationsTask);
+            await Task.WhenAll(callersTask, calleesTask, overridesTask, implementationsTask).ConfigureAwait(false);
             
             return new Result(
                 MemberSymbol.From(symbol, symbolManager, workspaceManager),
                 symbol.GetDocumentation(),
-                await callersTask,
-                await calleesTask,
-                await overridesTask,
-                await implementationsTask);
+                ToMembers((await callersTask).Select(caller => caller.CallingSymbol)),
+                ToMembers((await calleesTask).Select(callee => callee.Symbol)),
+                ToMembers(await overridesTask),
+                ToMembers(await implementationsTask));
         }
         catch (Exception e)
         {
@@ -74,55 +74,14 @@ public sealed class McpTool(
         }
     }
 
-    private async Task<IReadOnlyList<MemberSymbol>> LoadCallers(ISymbol symbol, Solution solution, CancellationToken cancellationToken)
-    {
-        var callers = await SymbolFinder.FindCallersAsync(symbol, solution, cancellationToken).ConfigureAwait(false);
+    private IReadOnlyList<MemberSymbol> ToMembers(IEnumerable<ISymbol> symbols) => symbols
+        .Select(symbol => MemberSymbol.From(symbol, symbolManager, workspaceManager))
+        .Where(member => member.Kind is not null && !member.Location.IsNullOrEmpty())
+        .DistinctBy(member => member.SymbolId)
+        .OrderBy(member => member.Location, StringComparer.OrdinalIgnoreCase)
+        .ThenBy(member => member.DisplayName, StringComparer.OrdinalIgnoreCase)
+        .ToList();
 
-        return callers
-            .Select(caller => caller.CallingSymbol)
-            .Select(ToMemberSymbol)
-            .OfType<MemberSymbol>()
-            .ToList();
-    }
-
-    private async Task<IReadOnlyList<MemberSymbol>> LoadCallees(ISymbol symbol, Solution solution, CancellationToken cancellationToken)
-    {
-        var callees = await CollectCalleesAsync(symbol, solution, cancellationToken).ConfigureAwait(false);
-
-        return callees
-            .Select(callee => callee.Symbol)
-            .Select(ToMemberSymbol)
-            .OfType<MemberSymbol>()
-            .ToList();
-    }
-
-    private async Task<IReadOnlyList<MemberSymbol>> LoadOverrides(ISymbol symbol, Solution solution, CancellationToken cancellationToken)
-    {
-        var overrides = await SymbolFinder.FindOverridesAsync(symbol, solution, null, cancellationToken).ConfigureAwait(false);
-
-        return overrides
-            .Select(ToMemberSymbol)
-            .OfType<MemberSymbol>()
-            .ToList();
-    }
-
-    private async Task<IReadOnlyList<MemberSymbol>> LoadImplementations(ISymbol symbol, Solution solution, CancellationToken cancellationToken)
-    {
-        var implementations = await SymbolFinder.FindImplementationsAsync(symbol, solution, null, cancellationToken).ConfigureAwait(false);
-
-        return implementations
-            .Select(ToMemberSymbol)
-            .OfType<MemberSymbol>()
-            .ToList();
-    }
-
-    private MemberSymbol? ToMemberSymbol(ISymbol symbol)
-    {
-        var member = MemberSymbol.From(symbol, symbolManager, workspaceManager);
-
-        return member.Kind is null || member.Location.IsNullOrEmpty() ? null : member;
-    }
-    
     private static async Task<IReadOnlyList<(ISymbol Symbol, Location Location)>> CollectCalleesAsync(ISymbol symbol, Solution solution, CancellationToken ct)
     {
         var results = new List<(ISymbol, Location)>();
@@ -132,17 +91,11 @@ public sealed class McpTool(
             ct.ThrowIfCancellationRequested();
             var node = await reference.GetSyntaxAsync(ct).ConfigureAwait(false);
             
-            var document = solution.GetDocument(node.SyntaxTree);
-            if (document == null)
-            {
+            if( solution.GetDocument(node.SyntaxTree) is not { } document)
                 continue;
-            }
 
-            var semanticModel = await document.GetSemanticModelAsync(ct).ConfigureAwait(false);
-            if (semanticModel == null)
-            {
+            if(await document.GetSemanticModelAsync(ct) is not { } semanticModel)
                 continue;
-            }
 
             var collector = new CalleeCollector(semanticModel, ct);
             collector.Visit(node);
