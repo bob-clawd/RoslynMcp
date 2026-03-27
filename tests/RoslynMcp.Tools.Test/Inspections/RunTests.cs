@@ -84,4 +84,31 @@ public class RunTestsWithTarget(ITestOutputHelper o) : LoadedSolutionTests<McpTo
 		result.Counts.Passed.Is(1);
 		result.Counts.Failed.Is(3);
 	}
+
+	[Fact]
+	public async Task BadPath_OutsideLoadedSolutionDirectory()
+	{
+		var result = await Sut.Execute(CancellationToken.None, Path.Combine("..", "RoslynMcp.Tools.Test", "RoslynMcp.Tools.Test.csproj"));
+		o.WriteLine(result.ToJson());
+
+		result.Error?.Message.Is("target must be in the workspace directory");
+	}
+
+	[Fact]
+	public async Task BadPath_UnsupportedFileType()
+	{
+		var result = await Sut.Execute(CancellationToken.None, Path.Combine("ProjectCore", "Documentation.cs"));
+		o.WriteLine(result.ToJson());
+
+		result.Error?.Message.Is("target must be a directory, .sln, .slnx, or .csproj");
+	}
+
+	[Fact]
+	public async Task BadPath_MissingTarget()
+	{
+		var result = await Sut.Execute(CancellationToken.None, Path.Combine("RunTestsFixtures", "DoesNotExist"));
+		o.WriteLine(result.ToJson());
+
+		result.Error?.Message.Is("target not found");
+	}
 }
