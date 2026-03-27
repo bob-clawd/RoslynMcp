@@ -42,23 +42,37 @@ public sealed class McpTool(
         var derivedInterfacesTask = SymbolFinder.FindDerivedInterfacesAsync(symbol, solution, cancellationToken: cancellationToken);
         var implementationsTask = SymbolFinder.FindImplementationsAsync(symbol, solution, cancellationToken: cancellationToken);
 
-        await Task.WhenAll(derivedClassesTask, derivedInterfacesTask, implementationsTask);
-
-        var derivedClasses = await derivedClassesTask.ConfigureAwait(false);
-        var derivedInterfaces = await derivedInterfacesTask.ConfigureAwait(false);
-        var implementations = await implementationsTask.ConfigureAwait(false);
-
-        var members = symbol.GetMembers()
-            .Select(symbol => MemberSymbol.From(symbol, symbolManager, workspaceManager))
-            .Where(symbol => symbol.Kind is not null && symbol.Location.IsHandwritten())
-            .ToList();
+        await Task.WhenAll(derivedClassesTask, derivedInterfacesTask, implementationsTask).ConfigureAwait(false);
 
         var documentation = symbol.GetDocumentation();
         
         return new Result(TypeSymbol.From(symbol, symbolManager, workspaceManager),
             documentation?.Summary,
-            derivedClasses.Concat(derivedInterfaces).Select(d => TypeSymbol.From(d, symbolManager, workspaceManager)).ToList(),
-            implementations.Select(i => TypeSymbol.From(i, symbolManager, workspaceManager)).ToList(),
-            members);
+            ToTypes((await derivedClassesTask).Concat(await derivedInterfacesTask)),
+            ToTypes(await implementationsTask),
+            ToMembers(symbol.GetMembers()));
     }
+
+    private IReadOnlyList<TypeSymbol> ToTypes(IEnumerable<INamedTypeSymbol> symbols)
+    {
+        var types = symbols
+            .Select(symbol => TypeSymbol.From(symbol, symbolManager, workspaceManager))
+            .Where(type => !type.Location.IsNullOrEmpty())
+            .DistinctBy(type => type.SymbolId)
+            .OrderBy(type => type.Location, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(type => type.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (types.Any(type => type.Location.IsHandwritten()))
+            types.RemoveAll(type => !type.Location.IsHandwritten());
+
+        return types;
+    }
+
+    private IReadOnlyList<MemberSymbol> ToMembers(IEnumerable<ISymbol> symbols) => symbols
+        .Select(symbol => MemberSymbol.From(symbol, symbolManager, workspaceManager))
+        .Where(symbol => symbol.Kind is not null && symbol.Location.IsHandwritten())
+        .OrderBy(symbol => symbol.Location, StringComparer.OrdinalIgnoreCase)
+        .ThenBy(symbol => symbol.DisplayName, StringComparer.OrdinalIgnoreCase)
+        .ToList();
 }
