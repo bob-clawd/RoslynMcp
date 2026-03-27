@@ -4,6 +4,7 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Tools.Test.Inspections;
 
+[TraceWatch]
 public class LoadProject(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 {
 	[Fact]
@@ -12,7 +13,7 @@ public class LoadProject(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 		var result = await Sut.Execute(CancellationToken.None, Path.Combine("ProjectCore", "ProjectCore.csproj"));
 		o.WriteLine(result.ToJson());
 
-		result.Types.Count.Is(19);
+		result.Types.Count.Is(28);
 	}
 
 	[Fact]

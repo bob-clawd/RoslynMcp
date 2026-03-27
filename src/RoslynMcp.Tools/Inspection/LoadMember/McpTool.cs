@@ -47,15 +47,22 @@ public sealed class McpTool(
         if (symbol is ITypeSymbol)
             return Result.AsError("no type symbol please");
 
+        var callersTask = LoadCallers(symbol, solution, cancellationToken);
+        var calleesTask = LoadCallees(symbol, solution, cancellationToken);
+        var overridesTask = LoadOverrides(symbol, solution, cancellationToken);
+        var implementationsTask = LoadImplementations(symbol, solution, cancellationToken);
+        
         try
         {
+            await Task.WhenAll(callersTask, calleesTask, overridesTask, implementationsTask);
+            
             return new Result(
                 MemberSymbol.From(symbol, symbolManager, workspaceManager),
                 symbol.GetDocumentation(),
-                await LoadCallers(symbol, solution, cancellationToken),
-                await LoadCallees(symbol, solution, cancellationToken),
-                await LoadOverrides(symbol, solution, cancellationToken),
-                await LoadImplementations(symbol, solution, cancellationToken));
+                await callersTask,
+                await calleesTask,
+                await overridesTask,
+                await implementationsTask);
         }
         catch (Exception e)
         {

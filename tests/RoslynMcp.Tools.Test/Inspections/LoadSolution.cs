@@ -4,6 +4,7 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Tools.Test.Inspections;
 
+[TraceWatch]
 public class LoadSolution(ITestOutputHelper o) : Tests<McpTool>
 {
 	[Fact]

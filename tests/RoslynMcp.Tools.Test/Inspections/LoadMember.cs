@@ -5,6 +5,7 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Tools.Test.Inspections;
 
+[TraceWatch]
 public class LoadMember(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 {
 	[Fact]
@@ -59,6 +60,34 @@ public class LoadMember(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 
 		var result = await Sut.Execute(CancellationToken.None, memberSymbolId);
 		o.WriteLine(result.ToJson());
+	}
+
+	[Fact]
+	public async Task HappyPath_CallTree_WithImplementations()
+	{
+		var typeSymbolId = await GetTypeSymbolIdAsync("ProjectCore", "ILoadMemberScenarioWithBodyOperation");
+		var memberSymbolId = await GetMemberSymbolIdAsync(typeSymbolId, "ExecuteAsync");
+
+		var result = await Sut.Execute(CancellationToken.None, memberSymbolId);
+		o.WriteLine(result.ToJson());
+
+		result.Callers.Count.Is(2);
+		result.Callees.Count.Is(2);
+		result.Implementations.Count.Is(2);
+	}
+
+	[Fact]
+	public async Task HappyPath_CallTree_WithOverrides()
+	{
+		var typeSymbolId = await GetTypeSymbolIdAsync("ProjectCore", "LoadMemberScenarioOperationBase");
+		var memberSymbolId = await GetMemberSymbolIdAsync(typeSymbolId, "ExecuteAsync");
+
+		var result = await Sut.Execute(CancellationToken.None, memberSymbolId);
+		o.WriteLine(result.ToJson());
+
+		result.Callers.Count.Is(4);
+		result.Callees.Count.Is(3);
+		result.Overrides.Count.Is(2);
 	}
 	
 	private async Task<string> GetTypeSymbolIdAsync(string projectName, string displayName)
