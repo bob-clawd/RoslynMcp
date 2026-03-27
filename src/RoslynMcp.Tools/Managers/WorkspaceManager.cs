@@ -22,7 +22,7 @@ public sealed class WorkspaceManager : Manager
         if (Path.IsPathRooted(path))
             return path;
         
-        return Path.Combine(WorkspaceDirectory, path);
+        return Path.Combine(WorkspaceDirectory, path!);
     }
 
     internal string? ToRelativePathIfPossible(string? path) =>

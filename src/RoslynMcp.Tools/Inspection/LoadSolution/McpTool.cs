@@ -92,8 +92,8 @@ public sealed class McpTool(
             summaries.Add(new ProjectSummary(
                 project.Name,
                 workspaceManager.ToRelativePathIfPossible(project?.FilePath ?? string.Empty),
-                [.. outgoingByPath[projectPath].Select(workspaceManager.ToRelativePathIfPossible).OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)],
-                [.. incomingByPath[projectPath].Select(workspaceManager.ToRelativePathIfPossible).OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)]));
+                outgoingByPath[projectPath].Select(workspaceManager.ToRelativePathIfPossible).OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToList(),
+                incomingByPath[projectPath].Select(workspaceManager.ToRelativePathIfPossible).OrderBy(static path => path, StringComparer.OrdinalIgnoreCase).ToList()));
         }
 
         return [.. summaries

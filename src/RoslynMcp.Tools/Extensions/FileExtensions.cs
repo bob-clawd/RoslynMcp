@@ -30,6 +30,9 @@ internal static class FileExtensions
     {
         internal IEnumerable<string> DiscoverFiles(params string[] patterns)
         {
+            if (path is null)
+                yield break;
+            
             foreach (var pattern in patterns)
             {
                 foreach (var solutionPath in Directory.EnumerateFiles(path, pattern, SearchOption.AllDirectories))
@@ -43,13 +46,14 @@ internal static class FileExtensions
 
         private SourceKind Classify()
         {
-            if (string.IsNullOrWhiteSpace(path))
+            if (string.IsNullOrWhiteSpace(path) ||
+                path.NormalizePathSeparators() is not { } normalized ||
+                Path.GetFileName(normalized) is not { } fileName)
+            {
                 return SourceKind.Unknown;
+            }
 
-            var normalized = path.NormalizePathSeparators();
-            var fileName = Path.GetFileName(normalized);
-
-            if(SubFolders.Any(subFolder => normalized.Contains($"{Path.DirectorySeparatorChar}{subFolder}{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)))
+            if (SubFolders.Any(subFolder => normalized.Contains($"{Path.DirectorySeparatorChar}{subFolder}{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)))
                 return SourceKind.Intermediate;
 
             if (GeneratedFileSuffixes.Any(suffix => fileName.Contains(suffix, StringComparison.OrdinalIgnoreCase)))

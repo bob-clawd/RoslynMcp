@@ -63,7 +63,7 @@ public abstract class LoadedSolutionTests<T> : Tests<T> where T : notnull
 
 public abstract class Tests<T> where T : notnull
 {
-	protected string WorkspaceDirectory { get; set; }
+	protected string WorkspaceDirectory { get; set; } = Directory.GetCurrentDirectory();
 	
 	protected string TestSolutionDirectory { get; set; }
 	

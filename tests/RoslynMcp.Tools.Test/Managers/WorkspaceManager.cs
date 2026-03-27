@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Tools.Test.Managers;
 
-public class Workspace(ITestOutputHelper o) : Tests<WorkspaceManager>
+public class Workspace() : Tests<WorkspaceManager>
 {
 	[Fact]
 	public async Task PathChecks()

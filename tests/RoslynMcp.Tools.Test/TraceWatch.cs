@@ -30,7 +30,7 @@ public class TraceWatch : Stopwatch, IDisposable
         
         Message = message ?? $"-------------- Method '{caller}'";
 
-        _trace($"{Message} started");
+        _trace?.Invoke($"{Message} started");
 
         Start();
     }
@@ -39,6 +39,6 @@ public class TraceWatch : Stopwatch, IDisposable
     {
         Stop();
 
-        _trace($"{Message} end (Duration={Elapsed.TotalSeconds:F3}s)");
+        _trace?.Invoke($"{Message} end (Duration={Elapsed.TotalSeconds:F3}s)");
     }
 }

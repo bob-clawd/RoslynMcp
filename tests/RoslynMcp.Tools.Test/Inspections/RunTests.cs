@@ -36,8 +36,8 @@ public class RunTestsNoTarget(ITestOutputHelper o) : LoadedSolutionTests<McpTool
 		o.WriteLine(result.ToJson());
 
 		result.Outcome.Is("passed");
-		result.Counts.Passed.Is(1);
-		result.Counts.Failed.Is(0);
+		result.Counts?.Passed.Is(1);
+		result.Counts?.Failed.Is(0);
 	}
 }
 
@@ -59,8 +59,8 @@ public class RunTestsWithTarget(ITestOutputHelper o) : LoadedSolutionTests<McpTo
 		o.WriteLine(result.ToJson());
 
 		result.Outcome.Is("test_failures");
-		result.Counts.Passed.Is(0);
-		result.Counts.Failed.Is(1);
+		result.Counts?.Passed.Is(0);
+		result.Counts?.Failed.Is(1);
 	}
 
 	[Fact]
@@ -70,8 +70,8 @@ public class RunTestsWithTarget(ITestOutputHelper o) : LoadedSolutionTests<McpTo
 		o.WriteLine(result.ToJson());
 
 		result.Outcome.Is("test_failures");
-		result.Counts.Passed.Is(1);
-		result.Counts.Failed.Is(3);
+		result.Counts?.Passed.Is(1);
+		result.Counts?.Failed.Is(3);
 	}
 
 	[Fact]
@@ -81,8 +81,8 @@ public class RunTestsWithTarget(ITestOutputHelper o) : LoadedSolutionTests<McpTo
 		o.WriteLine(result.ToJson());
 
 		result.Outcome.Is("test_failures");
-		result.Counts.Passed.Is(1);
-		result.Counts.Failed.Is(3);
+		result.Counts?.Passed.Is(1);
+		result.Counts?.Failed.Is(3);
 	}
 
 	[Fact]
