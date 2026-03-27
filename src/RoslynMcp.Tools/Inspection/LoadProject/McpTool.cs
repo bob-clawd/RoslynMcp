@@ -12,7 +12,7 @@ public sealed record Result(
     ErrorInfo? Error = null)
 {
     public static Result AsError(string message, IReadOnlyDictionary<string, string>? details = null)
-        => new(0, [], new ErrorInfo(message));
+        => new(0, [], new ErrorInfo(message, details));
 }
 
 public sealed record Entry(
@@ -33,16 +33,19 @@ public sealed class McpTool(
         string? projectPath = null
         )
     {
-        if (solutionManager.Solution?.Projects.FirstOrDefault(p => Matches(p, projectPath)) is not { } project)
-            return Result.AsError("no project found");
+        if (solutionManager.Solution is not { } solution)
+            return Result.AsError("load solution first");
 
-        if(await project.GetCompilationAsync(cancellationToken).ConfigureAwait(false) is not { } compilation)
-            return Result.AsError("no compilation found");
+        if (solution.Projects.FirstOrDefault(p => Matches(p, projectPath)) is not { } project)
+            return Result.AsError("no project found", new Dictionary<string, string> { ["projectPath"] = projectPath ?? string.Empty });
+
+        if (await project.GetCompilationAsync(cancellationToken).ConfigureAwait(false) is not { } compilation)
+            return Result.AsError("no compilation found", new Dictionary<string, string> { ["projectPath"] = projectPath ?? project.FilePath ?? project.Name });
 
         var projectTrees = (await Task.WhenAll(project.Documents
                 .Where(d => d.SupportsSyntaxTree)
                 .Select(d => d.GetSyntaxTreeAsync(cancellationToken))))
-            .Where(t => t is not null)
+            .OfType<SyntaxTree>()
             .ToHashSet();
         
         var types = compilation!.GlobalNamespace.GetTypes()
@@ -56,10 +59,8 @@ public sealed class McpTool(
         return new Result(types.Count, types.OrderByDescending(e => e.Members).ToList());
     }
 
-    private bool Matches(Project project, string input)
-    {
-        return project.Name == input || project.FilePath == workspaceManager.ToAbsolutePath(input);
-    }
+    private bool Matches(Project project, string? input)
+        => project.Name == input || project.FilePath == workspaceManager.ToAbsolutePath(input);
 
     private Entry ToEntry(INamedTypeSymbol symbol)
     {

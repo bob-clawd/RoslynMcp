@@ -24,4 +24,27 @@ public class LoadProject(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 
 		result.Types.Count.Is(10);
 	}
+
+	[Fact]
+	public async Task UnknownProject_ReturnsProjectPathDetails()
+	{
+		var result = await Sut.Execute(CancellationToken.None, "missing.csproj");
+		o.WriteLine(result.ToJson());
+
+		result.Error?.Message.Is("no project found");
+		result.Error?.Details?["projectPath"].Is("missing.csproj");
+	}
+}
+
+[TraceWatch]
+public class LoadProjectWithoutSolution(ITestOutputHelper o) : Tests<McpTool>
+{
+	[Fact]
+	public async Task MissingSolution_ReturnsGuidance()
+	{
+		var result = await Sut.Execute(CancellationToken.None, "ProjectImpl");
+		o.WriteLine(result.ToJson());
+
+		result.Error?.Message.Is("load solution first");
+	}
 }
