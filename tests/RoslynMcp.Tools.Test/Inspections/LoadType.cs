@@ -27,7 +27,9 @@ public class LoadType(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 		var result = await Sut.Execute(CancellationToken.None, symbolId);
 		o.WriteLine(result.ToJson());
 		
+		result.Derived.Count.Is(2);
 		result.Implementations.Count.Is(3);
+		result.Members.Count.Is(1);
 	}
 	
 	
@@ -40,6 +42,8 @@ public class LoadType(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 		o.WriteLine(result.ToJson());
 		
 		result.Derived.Count.Is(2);
+		result.Implementations.Count.Is(0);
+		result.Members.Count.Is(3);
 	}
 	
 	[Fact]
@@ -49,6 +53,10 @@ public class LoadType(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 
 		var result = await Sut.Execute(CancellationToken.None, symbolId);
 		o.WriteLine(result.ToJson());
+		
+		result.Derived.Count.Is(0);
+		result.Implementations.Count.Is(0);
+		result.Members.Count.Is(10);
 	}
 	
 	private async Task<string> GetTypeSymbolIdAsync(string projectName, string displayName)
