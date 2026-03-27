@@ -64,6 +64,6 @@ public sealed class McpTool(
 
     private Entry ToEntry(INamedTypeSymbol symbol)
     {
-        return new Entry(TypeSymbol.From(symbol, symbolManager, workspaceManager), symbol.MembersCount(symbolManager, workspaceManager));
+        return new Entry(TypeSymbol.From(symbol, symbolManager, workspaceManager), symbol.MembersCount());
     }
 }

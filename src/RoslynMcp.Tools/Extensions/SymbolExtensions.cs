@@ -39,12 +39,11 @@ internal static class SymbolExtensions
                 .ToArray();
         }
         
-        internal int MembersCount(SymbolManager symbolManager, WorkspaceManager workspaceManager)
+        internal int MembersCount()
         {
             return symbol.GetMembers()
                 .Where(m => m.DeclaredAccessibility > Accessibility.Private)
-                .Select(m => MemberSymbol.From(m, symbolManager, workspaceManager))
-                .Count(m => m.Kind != null);
+                .Count(m => m.ToMemberKind() is not null);
         }
     }
 
