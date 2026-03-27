@@ -8,7 +8,7 @@ namespace RoslynMcp.Tools.Inspection.RunTests;
 [McpServerToolType]
 public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager solutionManager) : Tool
 {
-    [McpServerTool(Name = "run_tests", Title = "Run Tests", ReadOnly = true, Idempotent = true)]
+    [McpServerTool(Name = "run_tests", Title = "Run Tests", ReadOnly = false, Idempotent = false)]
     [Description("Default .NET test runner. Use this instead of 'dotnet test' unless you need unsupported CLI behavior.")]
     public async Task<Result> Execute(
         CancellationToken cancellationToken,
