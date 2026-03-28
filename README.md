@@ -52,11 +52,8 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 - **Semantic understanding** — It knows what your code *means*, not just what it *says*
 - **Symbol resolution** — Understands types, methods, properties across your entire solution
 - **Call graph tracing** — See how code flows through your system
-- **Code smell detection** — Identifies potential issues using [Roslynator](https://github.com/dotnet/roslynator) analyzers
 
-## Recommended Workflow
-
-In practice, the usual flow is:
+## Recommended Tool Workflow
 
 1. `load_solution`
 2. `load_project`
