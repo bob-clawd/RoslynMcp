@@ -12,6 +12,12 @@ public sealed class AppOrchestrator(IWorkItemOperation operation)
     private readonly CodeSmells _smells = new();
     private int _steps;
 
+    public string Name { get; set; }
+
+    public DateTime MyTime { get;  private set; }
+
+    public TimeSpan Duration { get; }
+
     public async Task<OperationResult> RunAsync(CancellationToken cancellationToken = default)
     {
         _operation.StepCompleted += OnStepCompleted;
@@ -19,6 +25,7 @@ public sealed class AppOrchestrator(IWorkItemOperation operation)
 
         await _session.StartAsync(cancellationToken);
         var item = new WorkItem(SampleId, "direct", Priority: 2);
+        GeneratedExecutionHooks.BeforeRun(item);
         var directResult = await ExecuteFlowAsync(item, cancellationToken);
 
         _ = _smells.Calculate(3);
@@ -61,6 +68,8 @@ public sealed class AppOrchestrator(IWorkItemOperation operation)
         {
             _steps++;
         }
+
+        Name = "Done";
     }
 
     private void OnStateChanged(object? sender, string state)

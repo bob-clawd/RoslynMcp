@@ -1,21 +1,24 @@
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
-using RoslynMcp.Features;
-using RoslynMcp.Infrastructure;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
-using RoslynMcp.Features.Tools;
+using RoslynMcp.Tools.Extensions;
 
 namespace RoslynMcp.Host;
 
 public static class HostExtensions
 {
+    internal static string ServerVersion => Assembly.GetExecutingAssembly()?
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        ?? typeof(HostExtensions).Assembly.GetName().Version?.ToString()
+        ?? "0.0.0";
+
     extension(IServiceCollection services)
     {
         public void Compose() => services
-            .AddInfrastructure()
-            .AddImplementations<Features.Tool>()
+            .WithRoslynMcp()
             .AddMcpRuntime();
 
         private void AddMcpRuntime()
@@ -33,15 +36,12 @@ public static class HostExtensions
                 options.ServerInfo = new Implementation
                 {
                     Name = "RoslynMcp",
-                    Version = "0.1.0"
+                    Version = ServerVersion
                 };
             });
 
             builder.WithStdioServerTransport();
-            builder.WithTools(FeatureExtensions.GetImplementations<Features.Tool>(), serializerOptions);
-
-            services.AddSingleton<HostRuntime>();
-            services.AddHostedService(provider => provider.GetRequiredService<HostRuntime>());
+            builder.WithTools(ServiceExtensions.GetTools(), serializerOptions);
         }
     }
 }
