@@ -2,32 +2,29 @@ namespace RoslynMcp.Tools.Extensions;
 
 internal static class PathExtensions
 {
-    extension(string? input)
+    internal static string? NormalizePathSeparators(this string? input)
     {
-        internal string? NormalizePathSeparators()
-        {
-            return input?
-                .Replace('\\', Path.DirectorySeparatorChar)
-                .Replace('/', Path.DirectorySeparatorChar);
-        }
+        return input?
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
+    }
 
-        internal bool IsNullOrEmpty()
-        {
-            return string.IsNullOrEmpty(input);
-        }
+    internal static bool IsNullOrEmpty(this string? input)
+    {
+        return string.IsNullOrEmpty(input);
+    }
 
-        internal bool IsWithin(string? root)
-        {
-            if (input.IsNullOrEmpty() || root.IsNullOrEmpty())
-                return false;
+    internal static bool IsWithin(this string? input, string? root)
+    {
+        if (input.IsNullOrEmpty() || root.IsNullOrEmpty())
+            return false;
 
-            var path = Path.GetFullPath(input!);
-            var absoluteRoot = Path.GetFullPath(root!);
+        var path = Path.GetFullPath(input!);
+        var absoluteRoot = Path.GetFullPath(root!);
 
-            if (string.Equals(path, absoluteRoot, StringComparison.OrdinalIgnoreCase))
-                return true;
+        if (string.Equals(path, absoluteRoot, StringComparison.OrdinalIgnoreCase))
+            return true;
 
-            return path.StartsWith(absoluteRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-        }
+        return path.StartsWith(absoluteRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 }

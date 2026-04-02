@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using RoslynMcp.Tools.Inspection.LoadSolution;
 using RoslynMcp.Tools.Extensions;
 using RoslynMcp.Tools.Managers;
@@ -67,7 +68,7 @@ public abstract class Tests<T> where T : notnull
 	
 	protected string TestSolutionDirectory { get; set; }
 	
-	protected ServiceProvider ServiceProvider { get; }
+	protected IServiceProvider ServiceProvider { get; }
 	
 	public T Sut { get; }
 

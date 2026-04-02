@@ -11,8 +11,5 @@ public static class Extensions
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
     
-    extension(object result)
-    {
-        internal string ToJson() => JsonSerializer.Serialize(result, Options);
-    }
+    internal static string ToJson(this object result) => JsonSerializer.Serialize(result, Options);
 }

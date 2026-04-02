@@ -26,40 +26,37 @@ internal static class FileExtensions
         Unknown
     }
 
-    extension(string? path)
+    internal static IEnumerable<string> DiscoverFiles(this string? path, params string[] patterns)
     {
-        internal IEnumerable<string> DiscoverFiles(params string[] patterns)
+        if (path is null)
+            yield break;
+        
+        foreach (var pattern in patterns)
         {
-            if (path is null)
-                yield break;
-            
-            foreach (var pattern in patterns)
+            foreach (var solutionPath in Directory.EnumerateFiles(path, pattern, SearchOption.AllDirectories))
             {
-                foreach (var solutionPath in Directory.EnumerateFiles(path, pattern, SearchOption.AllDirectories))
-                {
-                    yield return Path.GetFullPath(solutionPath);
-                }
+                yield return Path.GetFullPath(solutionPath);
             }
         }
+    }
 
-        internal bool IsHandwritten() => path.Classify() is SourceKind.HandWritten or SourceKind.Unknown;
+    internal static bool IsHandwritten(this string? path) => path.Classify() is SourceKind.HandWritten or SourceKind.Unknown;
 
-        private SourceKind Classify()
+    private static SourceKind Classify(this string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) ||
+            path.NormalizePathSeparators() is not { } normalized ||
+            Path.GetFileName(normalized) is not { } fileName)
         {
-            if (string.IsNullOrWhiteSpace(path) ||
-                path.NormalizePathSeparators() is not { } normalized ||
-                Path.GetFileName(normalized) is not { } fileName)
-            {
-                return SourceKind.Unknown;
-            }
-
-            if (SubFolders.Any(subFolder => normalized.Contains($"{Path.DirectorySeparatorChar}{subFolder}{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)))
-                return SourceKind.Intermediate;
-
-            if (GeneratedFileSuffixes.Any(suffix => fileName.Contains(suffix, StringComparison.OrdinalIgnoreCase)))
-                return SourceKind.Generated;
-
-            return SourceKind.HandWritten;
+            return SourceKind.Unknown;
         }
+
+        if (SubFolders.Any(subFolder => normalized.Contains($"{Path.DirectorySeparatorChar}{subFolder}{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)))
+            return SourceKind.Intermediate;
+
+        if (GeneratedFileSuffixes.Any(suffix => fileName.Contains(suffix, StringComparison.OrdinalIgnoreCase)))
+            return SourceKind.Generated;
+
+        return SourceKind.HandWritten;
     }
 }

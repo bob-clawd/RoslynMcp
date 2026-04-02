@@ -10,7 +10,7 @@ public static class McpServerHost
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args);
 
         builder.Logging.ClearProviders();
-        builder.Services.Compose();
+        HostExtensions.Compose(builder.Services);
 
         var host = builder.Build();
         await host.RunAsync(cancellationToken).ConfigureAwait(false);

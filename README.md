@@ -56,11 +56,21 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 ## Recommended Tool Workflow
 
 1. `load_solution`
-2. `load_project`
+2. `load_project` (or `search_symbols` to find specific types/members)
 3. `load_type`
 4. `load_member`
 5. `run_tests`
 
 This keeps navigation semantic and symbol-aware without relying on text-only search.
+
+### Quick Discovery with `search_symbols`
+
+Quickly find symbols by name patterns across your entire solution:
+
+- `search_symbols` with pattern `*Controller` finds all controller classes
+- `search_symbols` with pattern `I*Service` finds all service interfaces  
+- `search_symbols` with pattern `Get*` and `searchKind: members` finds all getter methods
+
+This is perfect for jumping directly to relevant code without browsing project by project.
 
 The full tool descriptions can be [found here](https://github.com/chrismo80/RoslynMcp/blob/main/TOOLS.md)

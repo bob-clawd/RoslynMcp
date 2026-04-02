@@ -5,19 +5,16 @@ namespace RoslynMcp.Tools.Extensions;
 
 public static class ServiceExtensions
 {
-    extension(IServiceCollection services)
+    public static IServiceCollection WithRoslynMcp(this IServiceCollection services) => services
+        .AddImplementations<Manager>()
+        .AddImplementations<Tool>();
+    
+    private static IServiceCollection AddImplementations<T>(this IServiceCollection services)
     {
-        public IServiceCollection WithRoslynMcp() => services
-            .AddImplementations<Manager>()
-            .AddImplementations<Tool>();
-        
-        private IServiceCollection AddImplementations<T>()
-        {
-            foreach (var type in GetImplementations<T>())
-                services.AddSingleton(type);
-        
-            return services;
-        }
+        foreach (var type in GetImplementations<T>())
+            services.AddSingleton(type);
+    
+        return services;
     }
     
     public static IEnumerable<Type> GetTools() => GetImplementations<Tool>();
@@ -29,5 +26,4 @@ public static class ServiceExtensions
     
     private static bool Implements<T>(this Type type) =>
         type is { IsClass: true, IsAbstract: false } && type.IsAssignableTo(typeof(T));
-
 }

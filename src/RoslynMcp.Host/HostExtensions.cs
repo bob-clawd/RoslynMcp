@@ -15,33 +15,30 @@ public static class HostExtensions
         ?? typeof(HostExtensions).Assembly.GetName().Version?.ToString()
         ?? "0.0.0";
 
-    extension(IServiceCollection services)
+    public static void Compose(this IServiceCollection services) => services
+        .WithRoslynMcp()
+        .AddMcpRuntime();
+
+    private static void AddMcpRuntime(this IServiceCollection services)
     {
-        public void Compose() => services
-            .WithRoslynMcp()
-            .AddMcpRuntime();
-
-        private void AddMcpRuntime()
+        var serializerOptions = new JsonSerializerOptions
         {
-            var serializerOptions = new JsonSerializerOptions
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
+            WriteIndented = true
+        };
+
+        var builder = services.AddMcpServer(options =>
+        {
+            options.ServerInfo = new Implementation
             {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-                TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
-                WriteIndented = true
+                Name = "RoslynMcp",
+                Version = ServerVersion
             };
+        });
 
-            var builder = services.AddMcpServer(options =>
-            {
-                options.ServerInfo = new Implementation
-                {
-                    Name = "RoslynMcp",
-                    Version = ServerVersion
-                };
-            });
-
-            builder.WithStdioServerTransport();
-            builder.WithTools(ServiceExtensions.GetTools(), serializerOptions);
-        }
+        builder.WithStdioServerTransport();
+        builder.WithTools(ServiceExtensions.GetTools(), serializerOptions);
     }
 }
