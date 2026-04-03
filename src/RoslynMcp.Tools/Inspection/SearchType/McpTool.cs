@@ -153,81 +153,49 @@ public sealed class McpTool(
                     continue;
 
                 foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
-                {
-                    var name = typeDecl.Identifier.ValueText;
-                    if (string.IsNullOrWhiteSpace(name))
-                        continue;
-
-                    if (name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
-                        continue;
-
-                    var ns = GetNamespace(typeDecl);
-                    var container = GetContainingTypes(typeDecl);
-                    var identity = BuildTypeIdentity(container, name, typeDecl.TypeParameterList?.Parameters.Count ?? 0);
-                    var fullName = string.IsNullOrWhiteSpace(ns) ? identity : $"{ns}.{identity}";
-
-                    matches.Add(new FoundMatch(
-                        fullName,
-                        projectPath,
-                        document.Id,
-                        typeDecl.Identifier.Span,
-                        document.FilePath.IsHandwritten()));
-                }
+                    AddMatch(matches, query, projectPath, document, typeDecl.Identifier.ValueText, typeDecl.Identifier.Span, GetNamespace(typeDecl), GetContainingTypes(typeDecl), typeDecl.TypeParameterList?.Parameters.Count ?? 0);
 
                 foreach (var enumDecl in root.DescendantNodes().OfType<EnumDeclarationSyntax>())
-                {
-                    var name = enumDecl.Identifier.ValueText;
-                    if (string.IsNullOrWhiteSpace(name))
-                        continue;
-
-                    if (name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
-                        continue;
-
-                    var ns = GetNamespace(enumDecl);
-                    var container = GetContainingTypes(enumDecl);
-                    var identity = BuildTypeIdentity(container, name, genericArity: 0);
-                    var fullName = string.IsNullOrWhiteSpace(ns) ? identity : $"{ns}.{identity}";
-
-                    matches.Add(new FoundMatch(
-                        fullName,
-                        projectPath,
-                        document.Id,
-                        enumDecl.Identifier.Span,
-                        document.FilePath.IsHandwritten()));
-                }
+                    AddMatch(matches, query, projectPath, document, enumDecl.Identifier.ValueText, enumDecl.Identifier.Span, GetNamespace(enumDecl), GetContainingTypes(enumDecl), genericArity: 0);
 
                 foreach (var delDecl in root.DescendantNodes().OfType<DelegateDeclarationSyntax>())
-                {
-                    var name = delDecl.Identifier.ValueText;
-                    if (string.IsNullOrWhiteSpace(name))
-                        continue;
-
-                    if (name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
-                        continue;
-
-                    var ns = GetNamespace(delDecl);
-                    var container = GetContainingTypes(delDecl);
-                    var arity = delDecl.TypeParameterList?.Parameters.Count ?? 0;
-                    var identity = BuildTypeIdentity(container, name, arity);
-                    var fullName = string.IsNullOrWhiteSpace(ns) ? identity : $"{ns}.{identity}";
-
-                    matches.Add(new FoundMatch(
-                        fullName,
-                        projectPath,
-                        document.Id,
-                        delDecl.Identifier.Span,
-                        document.FilePath.IsHandwritten()));
-                }
+                    AddMatch(matches, query, projectPath, document, delDecl.Identifier.ValueText, delDecl.Identifier.Span, GetNamespace(delDecl), GetContainingTypes(delDecl), delDecl.TypeParameterList?.Parameters.Count ?? 0);
             }
         }
 
         return matches;
     }
 
+    private static void AddMatch(
+        List<FoundMatch> matches,
+        string query,
+        string projectPath,
+        Document document,
+        string name,
+        TextSpan span,
+        string ns,
+        string container,
+        int genericArity)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return;
+
+        if (name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
+            return;
+
+        var identity = BuildTypeIdentity(container, name, genericArity);
+        var fullName = string.IsNullOrWhiteSpace(ns) ? identity : $"{ns}.{identity}";
+
+        matches.Add(new FoundMatch(
+            fullName,
+            projectPath,
+            document.Id,
+            span,
+            document.FilePath.IsHandwritten()));
+    }
+
     private static string GetNamespace(SyntaxNode node)
     {
-        // Collect all namespace segments (handles nested namespace declarations).
-        // For file-scoped namespaces this will be a single entry.
         var segments = new Stack<string>();
 
         for (SyntaxNode? current = node; current is not null; current = current.Parent)
