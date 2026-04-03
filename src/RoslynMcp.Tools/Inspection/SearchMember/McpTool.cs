@@ -13,10 +13,11 @@ public sealed record Match(string FullName, string ProjectPath, string? Location
 public sealed record Result(
     IReadOnlyList<Match> Matches,
     Inspection.LoadMember.Result? Member = null,
+    bool Truncated = false,
     ErrorInfo? Error = null)
 {
     public static Result AsError(string message, IReadOnlyDictionary<string, string>? details = null)
-        => new([], null, new ErrorInfo(message, details));
+        => new([], null, false, new ErrorInfo(message, details));
 }
 
 [McpServerToolType]
@@ -64,16 +65,27 @@ public sealed class McpTool(
         // If ambiguous: keep output small.
         if (candidates.Count != 1)
         {
+            const int maxMatches = 50;
+
+            var ordered = candidates
+                .OrderBy(m => m.FullName, StringComparer.Ordinal)
+                .ThenBy(m => m.ProjectPath, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var truncated = ordered.Count > maxMatches;
+            if (truncated)
+                ordered = ordered.Take(maxMatches).ToList();
+
             return new Result(
-                candidates
+                ordered
                     .Select(m => new Match(
                         m.FullName,
                         workspaceManager.ToRelativePathIfPossible(m.ProjectPath) ?? m.ProjectPath,
                         workspaceManager.ToRelativePathIfPossible(m.Location) ?? m.Location,
                         m.Kind))
-                    .OrderBy(m => m.FullName, StringComparer.Ordinal)
-                    .ThenBy(m => m.ProjectPath, StringComparer.OrdinalIgnoreCase)
-                    .ToList());
+                    .ToList(),
+                Member: null,
+                Truncated: truncated);
         }
 
         // If exactly one match: resolve to a stable symbol id and immediately return load_member.
