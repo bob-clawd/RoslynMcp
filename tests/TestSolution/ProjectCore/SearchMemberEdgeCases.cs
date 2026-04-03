@@ -9,9 +9,16 @@ public class SearchMemberEdgeCases
     {
     }
 
+    public void Overload(int value)
+    {
+    }
+
+    public void Overload(string value)
+    {
+    }
+
     public void RaiseA()
     {
         EventA?.Invoke();
     }
 }
-

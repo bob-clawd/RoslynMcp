@@ -54,9 +54,11 @@ public sealed class McpTool(
         if (candidates.Any(m => m.IsHandwritten))
             candidates.RemoveAll(m => !m.IsHandwritten);
 
-        // Deduplicate before the ambiguity check (partial types can have multiple declarations).
+        // Do NOT deduplicate by name/container here: overloaded methods/ctors and explicit interface implementations
+        // can share the same "FullName" but are distinct symbols. Instead, use the declaration span+document.
+        // (We still de-dupe exact duplicates to keep output stable.)
         candidates = candidates
-            .DistinctBy(m => (m.FullName, m.ProjectPath, m.Kind))
+            .DistinctBy(m => (m.DocumentId, m.Span, m.Kind))
             .ToList();
 
         // If ambiguous: keep output small.
@@ -247,4 +249,3 @@ public sealed class McpTool(
         return segments.Count == 0 ? string.Empty : string.Join(".", segments);
     }
 }
-

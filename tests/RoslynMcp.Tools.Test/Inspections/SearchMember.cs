@@ -52,5 +52,15 @@ public class SearchMember(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 
 		result.Error.IsNotNull();
 	}
-}
 
+	[Fact]
+	public async Task Overloads_AreNotCollapsedIntoUniqueResult()
+	{
+		var result = await Sut.Execute(CancellationToken.None, "Overload");
+		o.WriteLine(result.ToJson());
+
+		result.Error.IsNull();
+		result.Member.IsNull();
+		(result.Matches.Count >= 2).IsTrue();
+	}
+}
