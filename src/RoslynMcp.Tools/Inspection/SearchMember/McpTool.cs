@@ -60,6 +60,11 @@ public sealed class McpTool(
             .DistinctBy(m => (m.DocumentId, m.Span, m.Kind))
             .ToList();
 
+        // Prefer exact name matches: if the user searched for "Duration", and there are candidates named exactly
+        // "Duration" among broader matches, pick those.
+        if (candidates.Any(m => string.Equals(m.Name, query, StringComparison.OrdinalIgnoreCase)))
+            candidates.RemoveAll(m => !string.Equals(m.Name, query, StringComparison.OrdinalIgnoreCase));
+
         // NOTE: We intentionally do NOT attempt to collapse candidates further here.
         // Even if multiple declarations resolve to a single symbol (e.g. partial methods),
         // doing semantic resolution for every candidate is expensive and risks accidentally
@@ -140,6 +145,23 @@ public sealed class McpTool(
 
         if (node.FirstAncestorOrSelf<ConstructorDeclarationSyntax>() is { } ctorDecl)
             return semanticModel.GetDeclaredSymbol(ctorDecl, ct);
+
+        // Primary constructors (C# 12) are declared on the type header.
+        // For unique matches we need to resolve the constructor symbol from the containing type.
+        if (node.FirstAncestorOrSelf<TypeDeclarationSyntax>() is { ParameterList: not null } typeDecl)
+        {
+            if (semanticModel.GetDeclaredSymbol(typeDecl, ct) is INamedTypeSymbol typeSymbol)
+            {
+                // Prefer the instance ctor that is declared in source (ignore static ctor).
+                // For primary ctors, this should map back to the type declaration.
+                var ctor = typeSymbol.InstanceConstructors
+                    .Where(c => c.DeclaringSyntaxReferences.Length > 0)
+                    .FirstOrDefault();
+
+                if (ctor is not null)
+                    return ctor;
+            }
+        }
 
         if (node.FirstAncestorOrSelf<PropertyDeclarationSyntax>() is { } propDecl)
             return semanticModel.GetDeclaredSymbol(propDecl, ct);
