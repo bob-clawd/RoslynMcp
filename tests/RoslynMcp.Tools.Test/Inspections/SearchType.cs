@@ -60,6 +60,20 @@ public sealed class SearchType : LoadedSolutionTests<McpTool>
     }
 
     [Fact]
+    public async Task DelegateGenericArity_IsIncludedInIdentityForDedup()
+    {
+        var result = await Sut.Execute(CancellationToken.None, query: "GenericDelegate");
+
+        result.Type.IsNull();
+        result.Error.IsNull();
+        result.Matches.Count.Is(2);
+
+        result.Matches.Select(m => m.FullName).OrderBy(x => x, StringComparer.Ordinal).ToArray().Is(
+            "ProjectCore.Nested.GenericDelegate`1",
+            "ProjectCore.Nested.GenericDelegate`2");
+    }
+
+    [Fact]
     public async Task EnumAndDelegate_UniqueMatch_ResolvesCorrectSymbol()
     {
         var enumResult = await Sut.Execute(CancellationToken.None, query: "InnerEnum");

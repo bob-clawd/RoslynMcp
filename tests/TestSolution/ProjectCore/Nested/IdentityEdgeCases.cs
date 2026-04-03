@@ -18,3 +18,6 @@ public class OuterA
 
     public delegate void InnerDelegate(int value);
 }
+
+public delegate void GenericDelegate<T>(T value);
+public delegate void GenericDelegate<T1, T2>(T1 a, T2 b);

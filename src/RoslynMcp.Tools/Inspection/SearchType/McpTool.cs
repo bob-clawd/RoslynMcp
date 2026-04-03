@@ -207,7 +207,8 @@ public sealed class McpTool(
 
                     var ns = GetNamespace(delDecl);
                     var container = GetContainingTypes(delDecl);
-                    var identity = BuildTypeIdentity(container, name, genericArity: 0);
+                    var arity = delDecl.TypeParameterList?.Parameters.Count ?? 0;
+                    var identity = BuildTypeIdentity(container, name, arity);
                     var fullName = string.IsNullOrWhiteSpace(ns) ? identity : $"{ns}.{identity}";
 
                     matches.Add(new FoundMatch(

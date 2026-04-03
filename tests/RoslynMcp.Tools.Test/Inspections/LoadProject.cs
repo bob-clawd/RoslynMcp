@@ -13,7 +13,7 @@ public class LoadProject(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 		var result = await Sut.Execute(CancellationToken.None, Path.Combine("ProjectCore", "ProjectCore.csproj"));
 		o.WriteLine(result.ToJson());
 
-		result.Types.Count.Is(31);
+		result.Types.Count.Is(33);
 	}
 
 	[Fact]
