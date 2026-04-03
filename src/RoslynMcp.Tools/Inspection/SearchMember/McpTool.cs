@@ -55,12 +55,15 @@ public sealed class McpTool(
         if (candidates.Any(m => m.IsHandwritten))
             candidates.RemoveAll(m => !m.IsHandwritten);
 
-        // Do NOT deduplicate by name/container here: overloaded methods/ctors and explicit interface implementations
-        // can share the same "FullName" but are distinct symbols. Instead, use the declaration span+document.
-        // (We still de-dupe exact duplicates to keep output stable.)
+        // Deduplicate exact duplicates first (same declaration).
         candidates = candidates
             .DistinctBy(m => (m.DocumentId, m.Span, m.Kind))
             .ToList();
+
+        // NOTE: We intentionally do NOT attempt to collapse candidates further here.
+        // Even if multiple declarations resolve to a single symbol (e.g. partial methods),
+        // doing semantic resolution for every candidate is expensive and risks accidentally
+        // collapsing overloads or returning an arbitrary representative.
 
         // If ambiguous: keep output small.
         if (candidates.Count != 1)
@@ -117,6 +120,7 @@ public sealed class McpTool(
 
     private sealed record FoundMatch(
         string FullName,
+        string Name,
         string ProjectPath,
         DocumentId DocumentId,
         TextSpan Span,
@@ -223,6 +227,7 @@ public sealed class McpTool(
 
         matches.Add(new FoundMatch(
             fullName,
+            name,
             projectPath,
             document.Id,
             span,
