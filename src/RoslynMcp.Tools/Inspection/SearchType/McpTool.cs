@@ -92,9 +92,7 @@ public sealed class McpTool(
         if (symbol is null)
             return Result.AsError("type symbol not found");
 
-        var symbolId = symbolManager.ToSymbolId(symbol);
-        if (symbolId is null)
-            return Result.AsError("symbol id not found");
+        var symbolId = symbolManager.ToId(symbol);
 
         var typeResult = await loadTypeTool.Execute(cancellationToken, typeSymbolId: symbolId).ConfigureAwait(false);
         return new Result([], typeResult);
@@ -133,14 +131,14 @@ public sealed class McpTool(
                 foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
                 {
                     var name = typeDecl.Identifier.ValueText;
-                    if (name.IsNullOrWhiteSpace())
+                    if (string.IsNullOrWhiteSpace(name))
                         continue;
 
                     if (name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
                         continue;
 
                     var ns = GetNamespace(typeDecl);
-                    var fullName = ns.IsNullOrWhiteSpace() ? name : $"{ns}.{name}";
+                    var fullName = string.IsNullOrWhiteSpace(ns) ? name : $"{ns}.{name}";
 
                     matches.Add(new FoundMatch(
                         fullName,
