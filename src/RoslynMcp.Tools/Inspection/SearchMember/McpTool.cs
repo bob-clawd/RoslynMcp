@@ -8,7 +8,7 @@ using RoslynMcp.Tools.Managers;
 
 namespace RoslynMcp.Tools.Inspection.SearchMember;
 
-public sealed record Match(string FullName, string ProjectPath, string? Location, string? Kind);
+public sealed record Match(string FullName, string ProjectPath, string? Location, string? Kind, string? Signature = null);
 
 public sealed record Result(
     IReadOnlyList<Match> Matches,
@@ -85,7 +85,8 @@ public sealed class McpTool(
                         m.FullName,
                         workspaceManager.ToRelativePathIfPossible(m.ProjectPath) ?? m.ProjectPath,
                         workspaceManager.ToRelativePathIfPossible(m.Location) ?? m.Location,
-                        m.Kind))
+                        m.Kind,
+                        m.Signature))
                     .ToList(),
                 Member: null,
                 Truncated: truncated);
@@ -126,6 +127,7 @@ public sealed class McpTool(
         TextSpan Span,
         string? Location,
         string Kind,
+        string? Signature,
         bool IsHandwritten);
 
     private static ISymbol? TryResolveSymbol(SyntaxNode node, SemanticModel semanticModel, CancellationToken ct)
@@ -185,6 +187,21 @@ public sealed class McpTool(
                 foreach (var ctorDecl in root.DescendantNodes().OfType<ConstructorDeclarationSyntax>())
                     AddMatch(matches, query, projectPath, document, ctorDecl.Identifier.ValueText, ctorDecl.Identifier.Span, kind: "ctor", ctorDecl);
 
+                // Primary constructors (C# 12): e.g. `class Foo(Dep dep) { }`
+                // Roslyn represents them on the type declaration header.
+                foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+                {
+                    if (typeDecl.ParameterList is null)
+                        continue;
+
+                    // For primary ctors, the only meaningful identifier the user can search for is the type name.
+                    // We don't want broad queries to accidentally match type names.
+                    if (!string.Equals(typeDecl.Identifier.ValueText, query, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    AddMatch(matches, query, projectPath, document, typeDecl.Identifier.ValueText, typeDecl.Identifier.Span, kind: "ctor", typeDecl);
+                }
+
                 foreach (var propDecl in root.DescendantNodes().OfType<PropertyDeclarationSyntax>())
                     AddMatch(matches, query, projectPath, document, propDecl.Identifier.ValueText, propDecl.Identifier.Span, kind: "property", propDecl);
 
@@ -225,6 +242,13 @@ public sealed class McpTool(
 
         var location = document.FilePath;
 
+        var signature = kind switch
+        {
+            "method" => (declarationNode as MethodDeclarationSyntax)?.ParameterList?.ToString(),
+            "ctor" => (declarationNode as ConstructorDeclarationSyntax)?.ParameterList?.ToString(),
+            _ => null
+        };
+
         matches.Add(new FoundMatch(
             fullName,
             name,
@@ -233,6 +257,7 @@ public sealed class McpTool(
             span,
             location,
             kind,
+            signature,
             document.FilePath.IsHandwritten()));
     }
 
