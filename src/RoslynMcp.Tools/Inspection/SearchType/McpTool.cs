@@ -143,13 +143,59 @@ public sealed class McpTool(
                         continue;
 
                     var ns = GetNamespace(typeDecl);
-                    var fullName = string.IsNullOrWhiteSpace(ns) ? name : $"{ns}.{name}";
+                    var container = GetContainingTypes(typeDecl);
+                    var identity = string.IsNullOrWhiteSpace(container) ? name : $"{container}.{name}";
+                    var fullName = string.IsNullOrWhiteSpace(ns) ? identity : $"{ns}.{identity}";
 
                     matches.Add(new FoundMatch(
                         fullName,
                         projectPath,
                         document.Id,
                         typeDecl.Identifier.Span,
+                        document.FilePath.IsHandwritten()));
+                }
+
+                foreach (var enumDecl in root.DescendantNodes().OfType<EnumDeclarationSyntax>())
+                {
+                    var name = enumDecl.Identifier.ValueText;
+                    if (string.IsNullOrWhiteSpace(name))
+                        continue;
+
+                    if (name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
+                        continue;
+
+                    var ns = GetNamespace(enumDecl);
+                    var container = GetContainingTypes(enumDecl);
+                    var identity = string.IsNullOrWhiteSpace(container) ? name : $"{container}.{name}";
+                    var fullName = string.IsNullOrWhiteSpace(ns) ? identity : $"{ns}.{identity}";
+
+                    matches.Add(new FoundMatch(
+                        fullName,
+                        projectPath,
+                        document.Id,
+                        enumDecl.Identifier.Span,
+                        document.FilePath.IsHandwritten()));
+                }
+
+                foreach (var delDecl in root.DescendantNodes().OfType<DelegateDeclarationSyntax>())
+                {
+                    var name = delDecl.Identifier.ValueText;
+                    if (string.IsNullOrWhiteSpace(name))
+                        continue;
+
+                    if (name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
+                        continue;
+
+                    var ns = GetNamespace(delDecl);
+                    var container = GetContainingTypes(delDecl);
+                    var identity = string.IsNullOrWhiteSpace(container) ? name : $"{container}.{name}";
+                    var fullName = string.IsNullOrWhiteSpace(ns) ? identity : $"{ns}.{identity}";
+
+                    matches.Add(new FoundMatch(
+                        fullName,
+                        projectPath,
+                        document.Id,
+                        delDecl.Identifier.Span,
                         document.FilePath.IsHandwritten()));
                 }
             }
@@ -168,6 +214,22 @@ public sealed class McpTool(
         {
             if (current is BaseNamespaceDeclarationSyntax ns)
                 segments.Push(ns.Name.ToString());
+        }
+
+        return segments.Count == 0 ? string.Empty : string.Join(".", segments);
+    }
+
+    private static string GetContainingTypes(SyntaxNode node)
+    {
+        // Build the chain of containing type names for nested types.
+        // Example: OuterA.Inner -> "OuterA"
+        // Example: OuterA.Mid.Inner -> "OuterA.Mid"
+        var segments = new Stack<string>();
+
+        for (var current = node.Parent; current is not null; current = current.Parent)
+        {
+            if (current is TypeDeclarationSyntax t)
+                segments.Push(t.Identifier.ValueText);
         }
 
         return segments.Count == 0 ? string.Empty : string.Join(".", segments);
