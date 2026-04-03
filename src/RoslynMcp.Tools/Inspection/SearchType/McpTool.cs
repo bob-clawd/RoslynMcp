@@ -85,15 +85,11 @@ public sealed class McpTool(
 
         var node = root.FindNode(match.Span, getInnermostNodeForTie: true);
 
-        var typeDecl = node.FirstAncestorOrSelf<TypeDeclarationSyntax>();
-        if (typeDecl is null)
-            return Result.AsError("type declaration not found");
-
         var semanticModel = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
         if (semanticModel is null)
             return Result.AsError("no semantic model");
 
-        var symbol = semanticModel.GetDeclaredSymbol(typeDecl, cancellationToken) as INamedTypeSymbol;
+        var symbol = TryResolveNamedTypeSymbol(node, semanticModel, cancellationToken);
         if (symbol is null)
             return Result.AsError("type symbol not found");
 
@@ -109,6 +105,28 @@ public sealed class McpTool(
         DocumentId DocumentId,
         TextSpan Span,
         bool IsHandwritten);
+
+    private static INamedTypeSymbol? TryResolveNamedTypeSymbol(SyntaxNode node, SemanticModel semanticModel, CancellationToken ct)
+    {
+        // Unique match resolution must respect what we indexed:
+        // - TypeDeclarationSyntax (class/record/interface/struct)
+        // - EnumDeclarationSyntax
+        // - DelegateDeclarationSyntax
+        // Falling back to FirstAncestorOrSelf<TypeDeclarationSyntax> breaks enums/delegates.
+        var typeDecl = node.FirstAncestorOrSelf<TypeDeclarationSyntax>();
+        if (typeDecl is not null)
+            return semanticModel.GetDeclaredSymbol(typeDecl, ct) as INamedTypeSymbol;
+
+        var enumDecl = node.FirstAncestorOrSelf<EnumDeclarationSyntax>();
+        if (enumDecl is not null)
+            return semanticModel.GetDeclaredSymbol(enumDecl, ct) as INamedTypeSymbol;
+
+        var delegateDecl = node.FirstAncestorOrSelf<DelegateDeclarationSyntax>();
+        if (delegateDecl is not null)
+            return semanticModel.GetDeclaredSymbol(delegateDecl, ct) as INamedTypeSymbol;
+
+        return null;
+    }
 
     private static async Task<List<FoundMatch>> FindMatchesAsync(Solution solution, string query, CancellationToken ct)
     {
@@ -144,7 +162,7 @@ public sealed class McpTool(
 
                     var ns = GetNamespace(typeDecl);
                     var container = GetContainingTypes(typeDecl);
-                    var identity = string.IsNullOrWhiteSpace(container) ? name : $"{container}.{name}";
+                    var identity = BuildTypeIdentity(container, name, typeDecl.TypeParameterList?.Parameters.Count ?? 0);
                     var fullName = string.IsNullOrWhiteSpace(ns) ? identity : $"{ns}.{identity}";
 
                     matches.Add(new FoundMatch(
@@ -166,7 +184,7 @@ public sealed class McpTool(
 
                     var ns = GetNamespace(enumDecl);
                     var container = GetContainingTypes(enumDecl);
-                    var identity = string.IsNullOrWhiteSpace(container) ? name : $"{container}.{name}";
+                    var identity = BuildTypeIdentity(container, name, genericArity: 0);
                     var fullName = string.IsNullOrWhiteSpace(ns) ? identity : $"{ns}.{identity}";
 
                     matches.Add(new FoundMatch(
@@ -188,7 +206,7 @@ public sealed class McpTool(
 
                     var ns = GetNamespace(delDecl);
                     var container = GetContainingTypes(delDecl);
-                    var identity = string.IsNullOrWhiteSpace(container) ? name : $"{container}.{name}";
+                    var identity = BuildTypeIdentity(container, name, genericArity: 0);
                     var fullName = string.IsNullOrWhiteSpace(ns) ? identity : $"{ns}.{identity}";
 
                     matches.Add(new FoundMatch(
@@ -221,17 +239,37 @@ public sealed class McpTool(
 
     private static string GetContainingTypes(SyntaxNode node)
     {
-        // Build the chain of containing type names for nested types.
+        // Build the chain of containing type identities for nested types.
         // Example: OuterA.Inner -> "OuterA"
-        // Example: OuterA.Mid.Inner -> "OuterA.Mid"
+        // Example: OuterA<T>.Inner -> "OuterA`1"
         var segments = new Stack<string>();
 
         for (var current = node.Parent; current is not null; current = current.Parent)
         {
             if (current is TypeDeclarationSyntax t)
-                segments.Push(t.Identifier.ValueText);
+            {
+                var arity = t.TypeParameterList?.Parameters.Count ?? 0;
+                segments.Push(BuildTypeIdentity(string.Empty, t.Identifier.ValueText, arity));
+            }
+            else if (current is EnumDeclarationSyntax e)
+            {
+                segments.Push(BuildTypeIdentity(string.Empty, e.Identifier.ValueText, genericArity: 0));
+            }
+            else if (current is DelegateDeclarationSyntax d)
+            {
+                segments.Push(BuildTypeIdentity(string.Empty, d.Identifier.ValueText, genericArity: 0));
+            }
         }
 
         return segments.Count == 0 ? string.Empty : string.Join(".", segments);
+    }
+
+    private static string BuildTypeIdentity(string container, string name, int genericArity)
+    {
+        // Use metadata-like name encoding to keep output short and stable.
+        // Foo<T> => Foo`1
+        // Foo<T1,T2> => Foo`2
+        var local = genericArity > 0 ? $"{name}`{genericArity}" : name;
+        return string.IsNullOrWhiteSpace(container) ? local : $"{container}.{local}";
     }
 }
