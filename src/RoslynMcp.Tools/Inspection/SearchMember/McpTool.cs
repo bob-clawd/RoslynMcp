@@ -108,7 +108,7 @@ public sealed class McpTool(
         string ProjectPath,
         DocumentId DocumentId,
         TextSpan Span,
-        string Location,
+        string? Location,
         string Kind,
         bool IsHandwritten);
 
@@ -207,7 +207,7 @@ public sealed class McpTool(
         var memberIdentity = string.IsNullOrWhiteSpace(container) ? name : $"{container}.{name}";
         var fullName = string.IsNullOrWhiteSpace(ns) ? memberIdentity : $"{ns}.{memberIdentity}";
 
-        var location = document.FilePath + ":" + (declarationNode.GetLocation().GetLineSpan().StartLinePosition.Line + 1);
+        var location = document.FilePath;
 
         matches.Add(new FoundMatch(
             fullName,
