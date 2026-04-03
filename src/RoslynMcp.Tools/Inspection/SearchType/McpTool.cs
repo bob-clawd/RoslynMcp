@@ -53,6 +53,12 @@ public sealed class McpTool(
         if (candidates.Any(m => m.IsHandwritten))
             candidates.RemoveAll(m => !m.IsHandwritten);
 
+        // Deduplicate before the ambiguity check (partial types can have multiple declarations).
+        // We keep the first candidate only; for the ambiguous response we still return deduped names.
+        candidates = candidates
+            .DistinctBy(m => (m.FullName, m.ProjectPath))
+            .ToList();
+
         // If ambiguous: keep output small.
         if (candidates.Count != 1)
         {
@@ -61,7 +67,6 @@ public sealed class McpTool(
                     .Select(m => new Match(
                         m.FullName,
                         workspaceManager.ToRelativePathIfPossible(m.ProjectPath) ?? m.ProjectPath))
-                    .DistinctBy(m => (m.FullName, m.ProjectPath))
                     .OrderBy(m => m.FullName, StringComparer.Ordinal)
                     .ThenBy(m => m.ProjectPath, StringComparer.OrdinalIgnoreCase)
                     .ToList());
@@ -155,12 +160,16 @@ public sealed class McpTool(
 
     private static string GetNamespace(SyntaxNode node)
     {
+        // Collect all namespace segments (handles nested namespace declarations).
+        // For file-scoped namespaces this will be a single entry.
+        var segments = new Stack<string>();
+
         for (SyntaxNode? current = node; current is not null; current = current.Parent)
         {
             if (current is BaseNamespaceDeclarationSyntax ns)
-                return ns.Name.ToString();
+                segments.Push(ns.Name.ToString());
         }
 
-        return string.Empty;
+        return segments.Count == 0 ? string.Empty : string.Join(".", segments);
     }
 }
