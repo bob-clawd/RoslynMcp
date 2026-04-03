@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 using ModelContextProtocol.Server;
 using RoslynMcp.Tools.Extensions;
 using RoslynMcp.Tools.Managers;
