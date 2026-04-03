@@ -112,10 +112,7 @@ public sealed class McpTool(
         // - TypeDeclarationSyntax (class/record/interface/struct)
         // - EnumDeclarationSyntax
         // - DelegateDeclarationSyntax
-        // Falling back to FirstAncestorOrSelf<TypeDeclarationSyntax> breaks enums/delegates.
-        var typeDecl = node.FirstAncestorOrSelf<TypeDeclarationSyntax>();
-        if (typeDecl is not null)
-            return semanticModel.GetDeclaredSymbol(typeDecl, ct) as INamedTypeSymbol;
+        // Important: enum/delegate can be nested inside types. We must prefer the specific declaration.
 
         var enumDecl = node.FirstAncestorOrSelf<EnumDeclarationSyntax>();
         if (enumDecl is not null)
@@ -124,6 +121,10 @@ public sealed class McpTool(
         var delegateDecl = node.FirstAncestorOrSelf<DelegateDeclarationSyntax>();
         if (delegateDecl is not null)
             return semanticModel.GetDeclaredSymbol(delegateDecl, ct) as INamedTypeSymbol;
+
+        var typeDecl = node.FirstAncestorOrSelf<TypeDeclarationSyntax>();
+        if (typeDecl is not null)
+            return semanticModel.GetDeclaredSymbol(typeDecl, ct) as INamedTypeSymbol;
 
         return null;
     }

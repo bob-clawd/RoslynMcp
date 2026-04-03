@@ -44,4 +44,32 @@ public sealed class SearchType : LoadedSolutionTests<McpTool>
         first.FullName.IsNotNull();
         first.ProjectPath.IsNotNull();
     }
+
+    [Fact]
+    public async Task GenericArity_IsIncludedInIdentityForDedup()
+    {
+        var result = await Sut.Execute(CancellationToken.None, query: "GenericFoo");
+
+        result.Type.IsNull();
+        result.Error.IsNull();
+        result.Matches.Count.Is(2);
+
+        result.Matches.Select(m => m.FullName).OrderBy(x => x, StringComparer.Ordinal).ToArray().Is(
+            "ProjectCore.Nested.GenericFoo`1",
+            "ProjectCore.Nested.GenericFoo`2");
+    }
+
+    [Fact]
+    public async Task EnumAndDelegate_UniqueMatch_ResolvesCorrectSymbol()
+    {
+        var enumResult = await Sut.Execute(CancellationToken.None, query: "InnerEnum");
+        enumResult.Error.IsNull();
+        enumResult.Type.IsNotNull();
+        enumResult.Type!.Symbol!.DisplayName.Is("InnerEnum");
+
+        var delegateResult = await Sut.Execute(CancellationToken.None, query: "InnerDelegate");
+        delegateResult.Error.IsNull();
+        delegateResult.Type.IsNotNull();
+        delegateResult.Type!.Symbol!.DisplayName.Is("InnerDelegate");
+    }
 }
