@@ -56,10 +56,11 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 ## Recommended Tool Workflow
 
 1. `load_solution`
-2. `load_project`
-3. `load_type`
-4. `load_member`
-5. `run_tests`
+2. `search_type` *(when you only have a type name fragment; auto-resolves to `load_type` when unique)*
+3. `load_project`
+4. `load_type`
+5. `load_member`
+6. `run_tests`
 
 This keeps navigation semantic and symbol-aware without relying on text-only search.
 
