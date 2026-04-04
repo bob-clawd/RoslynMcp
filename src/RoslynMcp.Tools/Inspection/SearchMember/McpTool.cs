@@ -184,6 +184,11 @@ public sealed class McpTool(
     {
         var matches = new List<FoundMatch>();
 
+		// Fast prefilter: skip syntax tree enumeration for documents that do not even contain the query text.
+		// This helps a lot on larger solutions for more specific queries.
+		// For short queries (common tokens), this can increase overhead; keep the threshold conservative.
+		var useTextPrefilter = query.Length > 5;
+
         foreach (var project in solution.Projects)
         {
             if (project.FilePath is not { } projectPath || string.IsNullOrWhiteSpace(projectPath))
@@ -198,6 +203,13 @@ public sealed class McpTool(
 
                 if (document.FilePath is null)
                     continue;
+
+				if (useTextPrefilter)
+				{
+					var text = await document.GetTextAsync(ct).ConfigureAwait(false);
+					if (text.ToString().IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
+						continue;
+				}
 
                 var root = await document.GetSyntaxRootAsync(ct).ConfigureAwait(false);
                 if (root is null)
