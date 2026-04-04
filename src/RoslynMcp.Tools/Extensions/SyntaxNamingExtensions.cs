@@ -58,4 +58,10 @@ public static class SyntaxNamingExtensions
 
 	public static string BuildTypeIdentity(string name, int genericArity)
 		=> genericArity > 0 ? $"{name}`{genericArity}" : name;
+
+	public static string BuildQualifiedTypeIdentity(string container, string name, int genericArity)
+	{
+		var local = BuildTypeIdentity(name, genericArity);
+		return string.IsNullOrWhiteSpace(container) ? local : $"{container}.{local}";
+	}
 }

@@ -183,7 +183,7 @@ public sealed class McpTool(
         if (name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
             return;
 
-		var identity = BuildTypeIdentity(container, name, genericArity);
+		var identity = SyntaxNamingExtensions.BuildQualifiedTypeIdentity(container, name, genericArity);
 		var fullName = string.IsNullOrWhiteSpace(ns) ? identity : $"{ns}.{identity}";
 
         matches.Add(new FoundMatch(
@@ -197,13 +197,4 @@ public sealed class McpTool(
 	private static string GetNamespace(SyntaxNode node) => node.GetNamespaceName();
 
 	private static string GetContainingTypes(SyntaxNode node) => node.GetContainingTypeLikeChain();
-
-	private static string BuildTypeIdentity(string container, string name, int genericArity)
-	{
-		// Use metadata-like name encoding to keep output short and stable.
-		// Foo<T> => Foo`1
-		// Foo<T1,T2> => Foo`2
-		var local = SyntaxNamingExtensions.BuildTypeIdentity(name, genericArity);
-		return string.IsNullOrWhiteSpace(container) ? local : $"{container}.{local}";
-	}
 }

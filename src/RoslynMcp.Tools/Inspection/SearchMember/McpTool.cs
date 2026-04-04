@@ -257,8 +257,8 @@ public sealed class McpTool(
         if (name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
             return;
 
-		var ns = GetNamespace(declarationNode);
-		var container = GetContainingTypes(declarationNode);
+		var ns = declarationNode.GetNamespaceName();
+		var container = declarationNode.GetContainingTypeChain();
 		var memberIdentity = string.IsNullOrWhiteSpace(container) ? name : $"{container}.{name}";
 		var fullName = string.IsNullOrWhiteSpace(ns) ? memberIdentity : $"{ns}.{memberIdentity}";
 
@@ -283,7 +283,5 @@ public sealed class McpTool(
             document.FilePath.IsHandwritten()));
     }
 
-	private static string GetNamespace(SyntaxNode node) => node.GetNamespaceName();
-
-	private static string GetContainingTypes(SyntaxNode node) => node.GetContainingTypeChain();
+	// Naming helpers live in RoslynMcp.Tools.Extensions.SyntaxNamingExtensions.
 }
