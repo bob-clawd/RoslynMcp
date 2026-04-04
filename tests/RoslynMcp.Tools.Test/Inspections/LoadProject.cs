@@ -14,7 +14,7 @@ public class LoadProject(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 		o.WriteLine(result.ToJson());
 
 		// Type count can vary slightly with changes in the test solution/projects.
-		result.Types.Count.Is(33);
+		result.Types.Count.Is(34);
 	}
 
 	[Fact]
