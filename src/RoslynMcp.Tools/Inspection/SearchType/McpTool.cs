@@ -183,8 +183,8 @@ public sealed class McpTool(
         if (name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
             return;
 
-        var identity = BuildTypeIdentity(container, name, genericArity);
-        var fullName = string.IsNullOrWhiteSpace(ns) ? identity : $"{ns}.{identity}";
+		var identity = SyntaxNamingExtensions.BuildQualifiedTypeIdentity(container, name, genericArity);
+		var fullName = string.IsNullOrWhiteSpace(ns) ? identity : $"{ns}.{identity}";
 
         matches.Add(new FoundMatch(
             fullName,
@@ -194,52 +194,7 @@ public sealed class McpTool(
             document.FilePath.IsHandwritten()));
     }
 
-    private static string GetNamespace(SyntaxNode node)
-    {
-        var segments = new Stack<string>();
+	private static string GetNamespace(SyntaxNode node) => node.GetNamespaceName();
 
-        for (SyntaxNode? current = node; current is not null; current = current.Parent)
-        {
-            if (current is BaseNamespaceDeclarationSyntax ns)
-                segments.Push(ns.Name.ToString());
-        }
-
-        return segments.Count == 0 ? string.Empty : string.Join(".", segments);
-    }
-
-    private static string GetContainingTypes(SyntaxNode node)
-    {
-        // Build the chain of containing type identities for nested types.
-        // Example: OuterA.Inner -> "OuterA"
-        // Example: OuterA<T>.Inner -> "OuterA`1"
-        var segments = new Stack<string>();
-
-        for (var current = node.Parent; current is not null; current = current.Parent)
-        {
-            if (current is TypeDeclarationSyntax t)
-            {
-                var arity = t.TypeParameterList?.Parameters.Count ?? 0;
-                segments.Push(BuildTypeIdentity(string.Empty, t.Identifier.ValueText, arity));
-            }
-            else if (current is EnumDeclarationSyntax e)
-            {
-                segments.Push(BuildTypeIdentity(string.Empty, e.Identifier.ValueText, genericArity: 0));
-            }
-            else if (current is DelegateDeclarationSyntax d)
-            {
-                segments.Push(BuildTypeIdentity(string.Empty, d.Identifier.ValueText, genericArity: 0));
-            }
-        }
-
-        return segments.Count == 0 ? string.Empty : string.Join(".", segments);
-    }
-
-    private static string BuildTypeIdentity(string container, string name, int genericArity)
-    {
-        // Use metadata-like name encoding to keep output short and stable.
-        // Foo<T> => Foo`1
-        // Foo<T1,T2> => Foo`2
-        var local = genericArity > 0 ? $"{name}`{genericArity}" : name;
-        return string.IsNullOrWhiteSpace(container) ? local : $"{container}.{local}";
-    }
+	private static string GetContainingTypes(SyntaxNode node) => node.GetContainingTypeLikeChain();
 }

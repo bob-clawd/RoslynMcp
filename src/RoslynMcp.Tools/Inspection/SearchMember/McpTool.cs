@@ -257,10 +257,10 @@ public sealed class McpTool(
         if (name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
             return;
 
-        var ns = GetNamespace(declarationNode);
-        var container = GetContainingTypes(declarationNode);
-        var memberIdentity = string.IsNullOrWhiteSpace(container) ? name : $"{container}.{name}";
-        var fullName = string.IsNullOrWhiteSpace(ns) ? memberIdentity : $"{ns}.{memberIdentity}";
+		var ns = declarationNode.GetNamespaceName();
+		var container = declarationNode.GetContainingTypeChain();
+		var memberIdentity = string.IsNullOrWhiteSpace(container) ? name : $"{container}.{name}";
+		var fullName = string.IsNullOrWhiteSpace(ns) ? memberIdentity : $"{ns}.{memberIdentity}";
 
         var location = document.FilePath;
 
@@ -283,33 +283,5 @@ public sealed class McpTool(
             document.FilePath.IsHandwritten()));
     }
 
-    private static string GetNamespace(SyntaxNode node)
-    {
-        var segments = new Stack<string>();
-
-        for (SyntaxNode? current = node; current is not null; current = current.Parent)
-        {
-            if (current is BaseNamespaceDeclarationSyntax ns)
-                segments.Push(ns.Name.ToString());
-        }
-
-        return segments.Count == 0 ? string.Empty : string.Join(".", segments);
-    }
-
-    private static string GetContainingTypes(SyntaxNode node)
-    {
-        var segments = new Stack<string>();
-
-        for (var current = node.Parent; current is not null; current = current.Parent)
-        {
-            if (current is TypeDeclarationSyntax t)
-            {
-                var arity = t.TypeParameterList?.Parameters.Count ?? 0;
-                var identity = arity == 0 ? t.Identifier.ValueText : $"{t.Identifier.ValueText}`{arity}";
-                segments.Push(identity);
-            }
-        }
-
-        return segments.Count == 0 ? string.Empty : string.Join(".", segments);
-    }
+	// Naming helpers live in RoslynMcp.Tools.Extensions.SyntaxNamingExtensions.
 }
