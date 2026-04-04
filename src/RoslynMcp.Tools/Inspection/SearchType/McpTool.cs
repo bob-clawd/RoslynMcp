@@ -196,25 +196,7 @@ public sealed class McpTool(
 
 	private static string GetNamespace(SyntaxNode node) => node.GetNamespaceName();
 
-	private static string GetContainingTypes(SyntaxNode node)
-	{
-		// Build the chain of containing type identities for nested types.
-		// Example: OuterA.Inner -> "OuterA"
-		// Example: OuterA<T>.Inner -> "OuterA`1"
-		var segments = new Stack<string>();
-
-        for (var current = node.Parent; current is not null; current = current.Parent)
-        {
-			if (current is TypeDeclarationSyntax t)
-				segments.Push(SyntaxNamingExtensions.BuildTypeIdentity(t.Identifier.ValueText, t.TypeParameterList?.Parameters.Count ?? 0));
-			else if (current is EnumDeclarationSyntax e)
-				segments.Push(SyntaxNamingExtensions.BuildTypeIdentity(e.Identifier.ValueText, genericArity: 0));
-			else if (current is DelegateDeclarationSyntax d)
-				segments.Push(SyntaxNamingExtensions.BuildTypeIdentity(d.Identifier.ValueText, genericArity: 0));
-		}
-
-        return segments.Count == 0 ? string.Empty : string.Join(".", segments);
-    }
+	private static string GetContainingTypes(SyntaxNode node) => node.GetContainingTypeLikeChain();
 
 	private static string BuildTypeIdentity(string container, string name, int genericArity)
 	{
