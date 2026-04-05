@@ -139,13 +139,6 @@ public sealed class McpTool(
                 ReferencedBy: incomingByPath[projectPath].Count));
         }
 
-        // Split into node-type buckets.
-        var leavesList = summaries.Where(p => p.References == 0).ToList();
-        var rootsList = summaries.Where(p => p.ReferencedBy == 0).ToList();
-        // Prefer root over leaf when both apply (single-project solution).
-        leavesList.RemoveAll(p => p.ReferencedBy == 0);
-        var intermediatesList = summaries.Except(leavesList).Except(rootsList).ToList();
-
         // Top-level split by output role.
         // - Libraries: OutputType == "Library"
         // - Executables: OutputType == "Exe" or "WinExe"
@@ -176,19 +169,35 @@ public sealed class McpTool(
             };
         }
 
-        var pathToRole = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var project in solution.Projects)
-        {
-            var filePath = project.FilePath;
-            if (string.IsNullOrWhiteSpace(filePath))
-                continue;
-            var rel = workspaceManager.ToRelativePathIfPossible(filePath);
-            pathToRole[rel] = GetOutputRole(project);
-        }
+        var pathToRole = solution.Projects
+            .Where(p => !string.IsNullOrWhiteSpace(p.FilePath))
+            .Select(p => (Path: workspaceManager.ToRelativePathIfPossible(p.FilePath!), Role: GetOutputRole(p)))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Path))
+            .ToDictionary(x => x.Path!, x => x.Role, StringComparer.OrdinalIgnoreCase);
 
-        var librariesAll = summaries.Where(p => p.ProjectPath is not null && pathToRole.GetValueOrDefault(p.ProjectPath) == "libraries").ToList();
-        var executablesAll = summaries.Where(p => p.ProjectPath is not null && pathToRole.GetValueOrDefault(p.ProjectPath) == "executables").ToList();
-        var unknownAll = summaries.Where(p => p.ProjectPath is not null && pathToRole.GetValueOrDefault(p.ProjectPath) == "unknown").ToList();
+        var librariesAll = new List<ProjectSummary>();
+        var executablesAll = new List<ProjectSummary>();
+        var unknownAll = new List<ProjectSummary>();
+
+        foreach (var summary in summaries)
+        {
+            if (summary.ProjectPath is null)
+                continue;
+
+            var role = pathToRole.GetValueOrDefault(summary.ProjectPath) ?? "unknown";
+            switch (role)
+            {
+                case "libraries":
+                    librariesAll.Add(summary);
+                    break;
+                case "executables":
+                    executablesAll.Add(summary);
+                    break;
+                default:
+                    unknownAll.Add(summary);
+                    break;
+            }
+        }
 
         ProjectBuckets? BucketsOrNull(IReadOnlyList<ProjectSummary> subset)
         {
