@@ -13,7 +13,7 @@ public sealed record Result(
     ErrorInfo? Error = null)
 {
     public static Result AsError(string message, IReadOnlyDictionary<string, string>? details = null)
-        => new(null, new ProjectOutputBuckets(0, null, null, null, null), new EdgeInfo(0, false, []), new ErrorInfo(message, details));
+        => new(null, new ProjectOutputBuckets(0, null, null, null), new EdgeInfo(0, false, []), new ErrorInfo(message, details));
 }
 
 public sealed record ProjectSummary(
@@ -29,7 +29,6 @@ public sealed record ProjectBuckets(
 
 public sealed record ProjectOutputBuckets(
     int Count,
-    IReadOnlyList<ProjectSummary>? All,
     ProjectBuckets? Libraries,
     ProjectBuckets? Executables,
     ProjectBuckets? Unknown);
@@ -215,7 +214,6 @@ public sealed class McpTool(
 
         return new ProjectOutputBuckets(
             Count: summaries.Count,
-            All: SortList(summaries),
             Libraries: libBuckets,
             Executables: exeBuckets,
             Unknown: unkBuckets);
