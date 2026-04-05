@@ -9,12 +9,12 @@ namespace RoslynMcp.Tools.Inspection.LoadSolution;
 public sealed record Result(
     string? Path,
     SolutionSummary Summary,
-    ProjectBuckets Projects,
+    ProjectOutputBuckets Projects,
     IReadOnlyList<Edge> Edges,
     ErrorInfo? Error = null)
 {
     public static Result AsError(string message, IReadOnlyDictionary<string, string>? details = null)
-        => new(null, new SolutionSummary(0, 0, false), new ProjectBuckets([], [], []), [], new ErrorInfo(message, details));
+        => new(null, new SolutionSummary(0, 0, false), new ProjectOutputBuckets(new ProjectBuckets([], [], []), new ProjectBuckets([], [], [])), [], new ErrorInfo(message, details));
 }
 
 public sealed record SolutionSummary(
@@ -34,6 +34,10 @@ public sealed record ProjectBuckets(
     IReadOnlyList<ProjectSummary> Leaves,
     IReadOnlyList<ProjectSummary> Intermediates,
     IReadOnlyList<ProjectSummary> Roots);
+
+public sealed record ProjectOutputBuckets(
+    ProjectBuckets Libraries,
+    ProjectBuckets Executables);
 
 public sealed record Edge(
     string From,
@@ -74,7 +78,7 @@ public sealed class McpTool(
             GetEdges(solution));
     }
 
-    private ProjectBuckets GetProjectBuckets(Solution solution)
+    private ProjectOutputBuckets GetProjectBuckets(Solution solution)
     {
         var outgoingByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         var incomingByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
@@ -138,18 +142,30 @@ public sealed class McpTool(
             .Select(p => p with { NodeType = GetNodeType(p.ReferenceCount, p.ReferencedByCount) })
             .ToList();
 
-        static IReadOnlyList<ProjectSummary> Sort(IReadOnlyList<ProjectSummary> list)
-            => list
-                .OrderBy(p => GetOutputTypeSortKey(p.OutputType))
-                .ThenBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(p => p.Name, StringComparer.Ordinal)
-                .ToList();
+        static ProjectBuckets Bucket(IReadOnlyList<ProjectSummary> list)
+        {
+            IReadOnlyList<ProjectSummary> Sort(IReadOnlyList<ProjectSummary> l)
+                => l
+                    .OrderBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(p => p.Name, StringComparer.Ordinal)
+                    .ToList();
 
-        var leaves = Sort(withTypes.Where(p => p.NodeType == "leaf").ToList());
-        var intermediates = Sort(withTypes.Where(p => p.NodeType == "intermediate").ToList());
-        var roots = Sort(withTypes.Where(p => p.NodeType == "root").ToList());
+            var leaves = Sort(list.Where(p => p.NodeType == "leaf").ToList());
+            var intermediates = Sort(list.Where(p => p.NodeType == "intermediate").ToList());
+            var roots = Sort(list.Where(p => p.NodeType == "root").ToList());
 
-        return new ProjectBuckets(leaves, intermediates, roots);
+            return new ProjectBuckets(leaves, intermediates, roots);
+        }
+
+        // Top-level split by output role. We map outputType to two buckets:
+        // - Libraries: OutputType == "Library"
+        // - Executables: everything else (Exe, WinExe, unknown)
+        var libraries = withTypes.Where(p => string.Equals(p.OutputType, "Library", StringComparison.OrdinalIgnoreCase)).ToList();
+        var executables = withTypes.Where(p => !string.Equals(p.OutputType, "Library", StringComparison.OrdinalIgnoreCase)).ToList();
+
+        return new ProjectOutputBuckets(
+            Libraries: Bucket(libraries),
+            Executables: Bucket(executables));
     }
 
     private static string GetNodeType(int referenceCount, int referencedByCount)
