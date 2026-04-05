@@ -14,7 +14,7 @@ public sealed record Result(
     ErrorInfo? Error = null)
 {
     public static Result AsError(string message, IReadOnlyDictionary<string, string>? details = null)
-        => new(null, new SolutionSummary(0, 0, false), new ProjectOutputBuckets(new ProjectBuckets([], [], []), new ProjectBuckets([], [], [])), [], new ErrorInfo(message, details));
+        => new(null, new SolutionSummary(0, 0, false), new ProjectOutputBuckets(null, null, null), [], new ErrorInfo(message, details));
 }
 
 public sealed record SolutionSummary(
@@ -36,8 +36,9 @@ public sealed record ProjectBuckets(
     IReadOnlyList<ProjectSummary> Roots);
 
 public sealed record ProjectOutputBuckets(
-    ProjectBuckets Libraries,
-    ProjectBuckets Executables);
+    ProjectBuckets? Libraries,
+    ProjectBuckets? Executables,
+    ProjectBuckets? Unknown);
 
 public sealed record Edge(
     string From,
@@ -157,15 +158,25 @@ public sealed class McpTool(
             return new ProjectBuckets(leaves, intermediates, roots);
         }
 
-        // Top-level split by output role. We map outputType to two buckets:
+        // Top-level split by output role.
         // - Libraries: OutputType == "Library"
-        // - Executables: everything else (Exe, WinExe, unknown)
+        // - Executables: OutputType == "Exe" or "WinExe"
+        // - Unknown: anything else (including null/NetModule)
         var libraries = withTypes.Where(p => string.Equals(p.OutputType, "Library", StringComparison.OrdinalIgnoreCase)).ToList();
-        var executables = withTypes.Where(p => !string.Equals(p.OutputType, "Library", StringComparison.OrdinalIgnoreCase)).ToList();
+        var executables = withTypes.Where(p => string.Equals(p.OutputType, "Exe", StringComparison.OrdinalIgnoreCase)
+                                               || string.Equals(p.OutputType, "WinExe", StringComparison.OrdinalIgnoreCase)).ToList();
+        var unknown = withTypes.Except(libraries).Except(executables).ToList();
+
+        ProjectBuckets? BucketOrNull(IReadOnlyList<ProjectSummary> list)
+        {
+            var b = Bucket(list);
+            return (b.Leaves.Count == 0 && b.Intermediates.Count == 0 && b.Roots.Count == 0) ? null : b;
+        }
 
         return new ProjectOutputBuckets(
-            Libraries: Bucket(libraries),
-            Executables: Bucket(executables));
+            Libraries: BucketOrNull(libraries),
+            Executables: BucketOrNull(executables),
+            Unknown: BucketOrNull(unknown));
     }
 
     private static string GetNodeType(int referenceCount, int referencedByCount)
