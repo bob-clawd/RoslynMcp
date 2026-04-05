@@ -114,27 +114,36 @@ public sealed class McpTool(
         var outgoingByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         var incomingByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var project in solution.Projects)
-        {
-            var projectPath = project.FilePath ?? string.Empty;
+        // Policy: Ignore projects with no FilePath.
+        // Some solution/project systems can surface pathless projects (generated/shared).
+        // We exclude them entirely to keep counts consistent with the explicit edge list.
 
-            outgoingByPath.TryAdd(projectPath, []);
-            incomingByPath.TryAdd(projectPath, []);
+        var projectsWithPath = solution.Projects
+            .Where(p => !string.IsNullOrWhiteSpace(p.FilePath))
+            .Select(p => (Project: p, Path: p.FilePath!))
+            .ToList();
+
+        foreach (var (_, path) in projectsWithPath)
+        {
+            outgoingByPath.TryAdd(path, []);
+            incomingByPath.TryAdd(path, []);
         }
 
-        foreach (var project in solution.Projects)
+        foreach (var (project, sourcePath) in projectsWithPath)
         {
-            var sourcePath = project.FilePath ?? string.Empty;
-
             foreach (var reference in project.ProjectReferences)
             {
                 var dependency = solution.GetProject(reference.ProjectId);
-
-                if (dependency?.FilePath is null)
+                var dependencyPath = dependency?.FilePath;
+                if (string.IsNullOrWhiteSpace(dependencyPath))
                     continue;
 
-                outgoingByPath[sourcePath].Add(dependency.FilePath);
-                incomingByPath[dependency.FilePath].Add(sourcePath);
+                // Only keep edges between projects that have a stable file path.
+                if (!outgoingByPath.ContainsKey(sourcePath) || !incomingByPath.ContainsKey(dependencyPath))
+                    continue;
+
+                outgoingByPath[sourcePath].Add(dependencyPath);
+                incomingByPath[dependencyPath].Add(sourcePath);
             }
         }
 
