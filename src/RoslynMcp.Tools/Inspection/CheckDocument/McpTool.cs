@@ -34,12 +34,10 @@ public sealed class McpTool(
 		if (string.IsNullOrWhiteSpace(documentPath))
 			return Result.AsError("documentPath is required");
 
-		var workspaceRoot = Path.GetFullPath(workspaceManager.WorkspaceDirectory);
 		var absolutePath = Path.GetFullPath(workspaceManager.ToAbsolutePath(documentPath));
 		if (string.IsNullOrWhiteSpace(absolutePath))
 			return Result.AsError("document not found", new Dictionary<string, string> { ["documentPath"] = documentPath });
 
-		// Resolve the document by file path.
 		// Resolve the document by file path.
 		// We intentionally avoid File.Exists checks here because callers may provide relative paths
 		// and the workspace can be a sandbox copy in tests.
@@ -48,29 +46,33 @@ public sealed class McpTool(
 			   !string.IsNullOrWhiteSpace(right) &&
 			   string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
 
-		var docPathCandidate = documentPath.Trim();
-		var fileName = Path.GetFileName(docPathCandidate);
-
 		var documents = solution.Projects.SelectMany(p => p.Documents).Where(d => d.FilePath is not null).ToList();
 
-		// Accept absolute paths and also tolerate inputs that don't include the full workspace root.
-		var document = documents.FirstOrDefault(d => PathEquals(d.FilePath, absolutePath))
-			?? documents.FirstOrDefault(d => string.Equals(Path.GetFileName(d.FilePath!), fileName, StringComparison.OrdinalIgnoreCase));
+		var document = documents.FirstOrDefault(d => PathEquals(d.FilePath, absolutePath));
+
+		// Fallback: allow a bare filename only if it uniquely identifies a document in the solution.
+		// This avoids accidentally matching common names like Extensions.cs across multiple projects.
+		if (document is null)
+		{
+			var fileName = Path.GetFileName(documentPath.Trim());
+			if (!string.IsNullOrWhiteSpace(fileName))
+			{
+				var candidates = documents
+					.Where(d => string.Equals(Path.GetFileName(d.FilePath!), fileName, StringComparison.OrdinalIgnoreCase))
+					.Take(2)
+					.ToList();
+
+				if (candidates.Count == 1)
+					document = candidates[0];
+			}
+		}
 
 		if (document is null)
 			return Result.AsError("document not in solution", new Dictionary<string, string> { ["documentPath"] = documentPath });
 
-		var model = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
-		if (model is null)
-			return Result.AsError("no semantic model");
-
 		// SemanticModel.GetDiagnostics() may not force full compilation binding for certain failures.
 		// We use the project's compilation diagnostics and then filter down to this document.
-		// Force full compilation diagnostics (including files beyond this document), then filter.
-		var loadedProject = solution.Projects.FirstOrDefault(p => string.Equals(p.FilePath, document.Project.FilePath, StringComparison.OrdinalIgnoreCase))
-			?? document.Project;
-
-		var compilation = await loadedProject.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
+		var compilation = await document.Project.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
 		if (compilation is null)
 			return Result.AsError("no compilation");
 
