@@ -32,11 +32,13 @@ public sealed record ProjectSummary(
 
 public sealed record NodeTypeGroup(
     string NodeType,
+    string DisplayName,
     int Count,
     IReadOnlyList<ProjectSummary> Projects);
 
 public sealed record OutputTypeGroup(
     string OutputType,
+    string DisplayName,
     int Count,
     IReadOnlyList<NodeTypeGroup> Groups);
 
@@ -149,11 +151,13 @@ public sealed class McpTool(
             .GroupBy(p => p.OutputType ?? "(unknown)", StringComparer.OrdinalIgnoreCase)
             .Select(otg => new OutputTypeGroup(
                 OutputType: otg.Key,
+                DisplayName: GetOutputTypeDisplayName(otg.Key),
                 Count: otg.Count(),
                 Groups: otg
                     .GroupBy(p => p.NodeType ?? "(unknown)", StringComparer.OrdinalIgnoreCase)
                     .Select(ntg => new NodeTypeGroup(
                         NodeType: ntg.Key,
+                        DisplayName: GetNodeTypeDisplayName(ntg.Key),
                         Count: ntg.Count(),
                         Projects: ntg
                             .OrderBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
@@ -195,6 +199,24 @@ public sealed class McpTool(
             "intermediate" => 1,
             "root" => 2,
             _ => 3
+        };
+
+    private static string GetOutputTypeDisplayName(string outputType)
+        => outputType switch
+        {
+            "Library" => "Libraries",
+            "Exe" => "Executables",
+            "WinExe" => "Windows executables",
+            _ => outputType
+        };
+
+    private static string GetNodeTypeDisplayName(string nodeType)
+        => nodeType switch
+        {
+            "leaf" => "Leaves",
+            "intermediate" => "Intermediates",
+            "root" => "Roots",
+            _ => nodeType
         };
 
     private static string? GetMsBuildLikeOutputType(Project project)
