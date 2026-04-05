@@ -9,11 +9,11 @@ namespace RoslynMcp.Tools.Inspection.LoadSolution;
 public sealed record Result(
     string? Path,
     ProjectOutputBuckets Projects,
-    IReadOnlyList<Edge> Edges,
+    EdgeInfo Edges,
     ErrorInfo? Error = null)
 {
     public static Result AsError(string message, IReadOnlyDictionary<string, string>? details = null)
-        => new(null, new ProjectOutputBuckets(null, null, null, 0, 0, false), [], new ErrorInfo(message, details));
+        => new(null, new ProjectOutputBuckets(null, null, null, 0), new EdgeInfo(0, false, []), new ErrorInfo(message, details));
 }
 
 public sealed record ProjectSummary(
@@ -31,9 +31,12 @@ public sealed record ProjectOutputBuckets(
     ProjectBuckets? Libraries,
     ProjectBuckets? Executables,
     ProjectBuckets? Unknown,
+    int Count);
+
+public sealed record EdgeInfo(
     int Count,
-    int EdgeCount,
-    bool CycleDetected);
+    bool CycleDetected,
+    IReadOnlyList<Edge> Items);
 
 public sealed record Edge(
     string From,
@@ -70,7 +73,26 @@ public sealed class McpTool(
         return new Result(
             workspaceManager.ToRelativePathIfPossible(solutionPath),
             GetProjectBuckets(solution),
-            GetEdges(solution));
+            GetEdgeInfo(solution));
+    }
+
+    private EdgeInfo GetEdgeInfo(Solution solution)
+    {
+        var edges = GetEdges(solution);
+
+        var nodes = solution.Projects
+            .Select(p => workspaceManager.ToRelativePathIfPossible(p.FilePath ?? string.Empty))
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var topo = TopoSort(nodes, edges.Select(e => (e.From, e.To)).ToList());
+
+        return new EdgeInfo(
+            Count: edges.Count,
+            CycleDetected: topo.CycleDetected,
+            Items: edges);
     }
 
     private ProjectOutputBuckets GetProjectBuckets(Solution solution)
@@ -116,16 +138,6 @@ public sealed class McpTool(
                 References: outgoingByPath[projectPath].Count,
                 ReferencedBy: incomingByPath[projectPath].Count));
         }
-
-        var edges = GetEdges(solution);
-        var nodes = summaries.Select(p => p.ProjectPath)
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Select(p => p!)
-            .ToList();
-
-        var topo = TopoSort(
-            nodes: nodes,
-            edges: edges.Select(e => (e.From, e.To)).ToList());
 
         // Split into node-type buckets.
         var leavesList = summaries.Where(p => p.References == 0).ToList();
@@ -204,9 +216,7 @@ public sealed class McpTool(
             Libraries: libBuckets,
             Executables: exeBuckets,
             Unknown: unkBuckets,
-            Count: summaries.Count,
-            EdgeCount: edges.Count,
-            CycleDetected: topo.CycleDetected);
+            Count: summaries.Count);
     }
 
     // Note: previous nested group format removed in favor of explicit leaf/intermediate/root buckets.
