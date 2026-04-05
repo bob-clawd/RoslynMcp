@@ -110,7 +110,9 @@ public sealed class McpTool(
             summaries.Add(new ProjectSummary(
                 project.Name,
                 workspaceManager.ToRelativePathIfPossible(projectPath),
-                project.CompilationOptions?.OutputKind.ToString(),
+                // Prefer MSBuild's OutputType semantics (Exe/Library) over Roslyn's OutputKind.
+                // This aligns with common .csproj terminology and other tools.
+                GetMsBuildLikeOutputType(project),
                 outgoingByPath[projectPath].Count,
                 incomingByPath[projectPath].Count,
                 NodeType: null));
@@ -150,7 +152,21 @@ public sealed class McpTool(
             return "root";
         if (referenceCount == 0)
             return "leaf";
-        return null;
+        return "intermediate";
+    }
+
+    private static string? GetMsBuildLikeOutputType(Project project)
+    {
+        // Best-effort mapping from Roslyn OutputKind to MSBuild-style OutputType.
+        // MSBuild typically reports: Exe | Library | WinExe (rare).
+        return project.CompilationOptions?.OutputKind switch
+        {
+            OutputKind.DynamicallyLinkedLibrary => "Library",
+            OutputKind.ConsoleApplication => "Exe",
+            OutputKind.WindowsApplication => "WinExe",
+            OutputKind.NetModule => "NetModule",
+            _ => project.CompilationOptions?.OutputKind.ToString()
+        };
     }
 
     private IReadOnlyList<Edge> GetEdges(Solution solution)
