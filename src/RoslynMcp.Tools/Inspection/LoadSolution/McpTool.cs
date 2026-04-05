@@ -26,6 +26,7 @@ public sealed record SolutionSummary(
 public sealed record ProjectSummary(
     string Name,
     string? ProjectPath,
+    string? OutputType,
     int ReferenceCount,
     int ReferencedByCount,
     string? NodeType);
@@ -109,6 +110,7 @@ public sealed class McpTool(
             summaries.Add(new ProjectSummary(
                 project.Name,
                 workspaceManager.ToRelativePathIfPossible(projectPath),
+                project.CompilationOptions?.OutputKind.ToString(),
                 outgoingByPath[projectPath].Count,
                 incomingByPath[projectPath].Count,
                 NodeType: null));
