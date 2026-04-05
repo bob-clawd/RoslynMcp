@@ -8,27 +8,20 @@ namespace RoslynMcp.Tools.Inspection.LoadSolution;
 
 public sealed record Result(
     string? Path,
-    SolutionSummary Summary,
     ProjectOutputBuckets Projects,
     IReadOnlyList<Edge> Edges,
     ErrorInfo? Error = null)
 {
     public static Result AsError(string message, IReadOnlyDictionary<string, string>? details = null)
-        => new(null, new SolutionSummary(0, 0, false), new ProjectOutputBuckets(null, null, null), [], new ErrorInfo(message, details));
+        => new(null, new ProjectOutputBuckets(null, null, null, 0, 0, false), [], new ErrorInfo(message, details));
 }
-
-public sealed record SolutionSummary(
-    int ProjectCount,
-    int EdgeCount,
-    bool CycleDetected);
 
 public sealed record ProjectSummary(
     string Name,
     string? ProjectPath,
     string? OutputType,
-    int ReferenceCount,
-    int ReferencedByCount,
-    string? NodeType);
+    int References,
+    int ReferencedBy);
 
 public sealed record ProjectBuckets(
     IReadOnlyList<ProjectSummary> Leaves,
@@ -38,7 +31,10 @@ public sealed record ProjectBuckets(
 public sealed record ProjectOutputBuckets(
     ProjectBuckets? Libraries,
     ProjectBuckets? Executables,
-    ProjectBuckets? Unknown);
+    ProjectBuckets? Unknown,
+    int Count,
+    int EdgeCount,
+    bool CycleDetected);
 
 public sealed record Edge(
     string From,
@@ -74,7 +70,6 @@ public sealed class McpTool(
 
         return new Result(
             workspaceManager.ToRelativePathIfPossible(solutionPath),
-            GetSolutionSummary(solution),
             GetProjectBuckets(solution),
             GetEdges(solution));
     }
@@ -122,81 +117,66 @@ public sealed class McpTool(
                 // Prefer MSBuild's OutputType semantics (Exe/Library) over Roslyn's OutputKind.
                 // This aligns with common .csproj terminology and other tools.
                 GetMsBuildLikeOutputType(project),
-                outgoingByPath[projectPath].Count,
-                incomingByPath[projectPath].Count,
-                NodeType: null));
+                References: outgoingByPath[projectPath].Count,
+                ReferencedBy: incomingByPath[projectPath].Count));
         }
 
-        // Validate graph / detect cycles (not used for sorting anymore).
         var edges = GetEdges(solution);
         var nodes = summaries.Select(p => p.ProjectPath)
             .Where(p => !string.IsNullOrWhiteSpace(p))
             .Select(p => p!)
             .ToList();
 
-        _ = TopoSort(
+        var topo = TopoSort(
             nodes: nodes,
             edges: edges.Select(e => (e.From, e.To)).ToList());
 
-        // Attach nodeType and split into buckets.
-        var withTypes = summaries
-            .Select(p => p with { NodeType = GetNodeType(p.ReferenceCount, p.ReferencedByCount) })
-            .ToList();
-
-        static ProjectBuckets Bucket(IReadOnlyList<ProjectSummary> list)
-        {
-            IReadOnlyList<ProjectSummary> Sort(IReadOnlyList<ProjectSummary> l)
-                => l
-                    .OrderBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(p => p.Name, StringComparer.Ordinal)
-                    .ToList();
-
-            var leaves = Sort(list.Where(p => p.NodeType == "leaf").ToList());
-            var intermediates = Sort(list.Where(p => p.NodeType == "intermediate").ToList());
-            var roots = Sort(list.Where(p => p.NodeType == "root").ToList());
-
-            return new ProjectBuckets(leaves, intermediates, roots);
-        }
+        // Split into node-type buckets.
+        var leavesList = summaries.Where(p => p.References == 0).ToList();
+        var rootsList = summaries.Where(p => p.ReferencedBy == 0).ToList();
+        // Prefer root over leaf when both apply (single-project solution).
+        leavesList.RemoveAll(p => p.ReferencedBy == 0);
+        var intermediatesList = summaries.Except(leavesList).Except(rootsList).ToList();
 
         // Top-level split by output role.
         // - Libraries: OutputType == "Library"
         // - Executables: OutputType == "Exe" or "WinExe"
         // - Unknown: anything else (including null/NetModule)
-        var libraries = withTypes.Where(p => string.Equals(p.OutputType, "Library", StringComparison.OrdinalIgnoreCase)).ToList();
-        var executables = withTypes.Where(p => string.Equals(p.OutputType, "Exe", StringComparison.OrdinalIgnoreCase)
-                                               || string.Equals(p.OutputType, "WinExe", StringComparison.OrdinalIgnoreCase)).ToList();
-        var unknown = withTypes.Except(libraries).Except(executables).ToList();
 
-        ProjectBuckets? BucketOrNull(IReadOnlyList<ProjectSummary> list)
+        IReadOnlyList<ProjectSummary> SortList(IEnumerable<ProjectSummary> list)
+            => list
+                .OrderBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(p => p.Name, StringComparer.Ordinal)
+                .ToList();
+
+        var librariesAll = summaries.Where(p => string.Equals(p.OutputType, "Library", StringComparison.OrdinalIgnoreCase)).ToList();
+        var executablesAll = summaries.Where(p => string.Equals(p.OutputType, "Exe", StringComparison.OrdinalIgnoreCase)
+                                                  || string.Equals(p.OutputType, "WinExe", StringComparison.OrdinalIgnoreCase)).ToList();
+        var unknownAll = summaries.Except(librariesAll).Except(executablesAll).ToList();
+
+        ProjectBuckets? BucketsOrNull(IReadOnlyList<ProjectSummary> subset)
         {
-            var b = Bucket(list);
-            return (b.Leaves.Count == 0 && b.Intermediates.Count == 0 && b.Roots.Count == 0) ? null : b;
+            if (subset.Count == 0)
+                return null;
+
+            var l = SortList(subset.Where(p => p.References == 0 && p.ReferencedBy != 0));
+            var r = SortList(subset.Where(p => p.ReferencedBy == 0));
+            var i = SortList(subset.Where(p => !(p.References == 0 && p.ReferencedBy != 0) && p.ReferencedBy != 0));
+            return new ProjectBuckets(l, i, r);
         }
 
+        var libBuckets = BucketsOrNull(librariesAll);
+        var exeBuckets = BucketsOrNull(executablesAll);
+        var unkBuckets = BucketsOrNull(unknownAll);
+
         return new ProjectOutputBuckets(
-            Libraries: BucketOrNull(libraries),
-            Executables: BucketOrNull(executables),
-            Unknown: BucketOrNull(unknown));
+            Libraries: libBuckets,
+            Executables: exeBuckets,
+            Unknown: unkBuckets,
+            Count: summaries.Count,
+            EdgeCount: edges.Count,
+            CycleDetected: topo.CycleDetected);
     }
-
-    private static string GetNodeType(int referenceCount, int referencedByCount)
-    {
-        // Prefer root over leaf when both apply (single-project solution).
-        if (referencedByCount == 0)
-            return "root";
-        if (referenceCount == 0)
-            return "leaf";
-        return "intermediate";
-    }
-
-    private static int GetOutputTypeSortKey(string? outputType)
-        => outputType switch
-        {
-            "Library" => 0,
-            "Exe" => 1,
-            "WinExe" => 2,
-            _ => 3
-        };
 
     // Note: previous nested group format removed in favor of explicit leaf/intermediate/root buckets.
 
@@ -244,24 +224,7 @@ public sealed class McpTool(
             .ToList();
     }
 
-    private SolutionSummary GetSolutionSummary(Solution solution)
-    {
-        var projects = solution.Projects
-            .Select(p => workspaceManager.ToRelativePathIfPossible(p.FilePath ?? string.Empty))
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Select(p => p!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var edges = GetEdges(solution);
-        var topo = TopoSort(projects, edges.Select(e => (e.From, e.To)).ToList());
-
-        return new SolutionSummary(
-            ProjectCount: projects.Count,
-            EdgeCount: edges.Count,
-            CycleDetected: topo.CycleDetected);
-    }
+    // Summary fields are now embedded in the Projects node (Count/EdgeCount/CycleDetected).
 
     private static TopoSortResult TopoSort(IReadOnlyList<string> nodes, IReadOnlyList<(string from, string to)> edges)
     {
