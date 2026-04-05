@@ -19,14 +19,13 @@ public sealed record Result(
 public sealed record ProjectSummary(
     string Name,
     string? ProjectPath,
-    string? OutputType,
     int References,
     int ReferencedBy);
 
 public sealed record ProjectBuckets(
-    IReadOnlyList<ProjectSummary> Leaves,
-    IReadOnlyList<ProjectSummary> Intermediates,
-    IReadOnlyList<ProjectSummary> Roots);
+    IReadOnlyList<ProjectSummary>? Leaves,
+    IReadOnlyList<ProjectSummary>? Intermediates,
+    IReadOnlyList<ProjectSummary>? Roots);
 
 public sealed record ProjectOutputBuckets(
     ProjectBuckets? Libraries,
@@ -114,9 +113,6 @@ public sealed class McpTool(
             summaries.Add(new ProjectSummary(
                 project.Name,
                 workspaceManager.ToRelativePathIfPossible(projectPath),
-                // Prefer MSBuild's OutputType semantics (Exe/Library) over Roslyn's OutputKind.
-                // This aligns with common .csproj terminology and other tools.
-                GetMsBuildLikeOutputType(project),
                 References: outgoingByPath[projectPath].Count,
                 ReferencedBy: incomingByPath[projectPath].Count));
         }
@@ -149,10 +145,38 @@ public sealed class McpTool(
                 .ThenBy(p => p.Name, StringComparer.Ordinal)
                 .ToList();
 
-        var librariesAll = summaries.Where(p => string.Equals(p.OutputType, "Library", StringComparison.OrdinalIgnoreCase)).ToList();
-        var executablesAll = summaries.Where(p => string.Equals(p.OutputType, "Exe", StringComparison.OrdinalIgnoreCase)
-                                                  || string.Equals(p.OutputType, "WinExe", StringComparison.OrdinalIgnoreCase)).ToList();
-        var unknownAll = summaries.Except(librariesAll).Except(executablesAll).ToList();
+        // Classify by output role using Roslyn/MSBuild-like OutputKind mapping.
+        static string GetOutputRole(Project project)
+        {
+            var outputType = project.CompilationOptions?.OutputKind switch
+            {
+                OutputKind.DynamicallyLinkedLibrary => "Library",
+                OutputKind.ConsoleApplication => "Exe",
+                OutputKind.WindowsApplication => "WinExe",
+                _ => null
+            };
+
+            return outputType switch
+            {
+                "Library" => "libraries",
+                "Exe" or "WinExe" => "executables",
+                _ => "unknown"
+            };
+        }
+
+        var pathToRole = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var project in solution.Projects)
+        {
+            var filePath = project.FilePath;
+            if (string.IsNullOrWhiteSpace(filePath))
+                continue;
+            var rel = workspaceManager.ToRelativePathIfPossible(filePath);
+            pathToRole[rel] = GetOutputRole(project);
+        }
+
+        var librariesAll = summaries.Where(p => p.ProjectPath is not null && pathToRole.GetValueOrDefault(p.ProjectPath) == "libraries").ToList();
+        var executablesAll = summaries.Where(p => p.ProjectPath is not null && pathToRole.GetValueOrDefault(p.ProjectPath) == "executables").ToList();
+        var unknownAll = summaries.Where(p => p.ProjectPath is not null && pathToRole.GetValueOrDefault(p.ProjectPath) == "unknown").ToList();
 
         ProjectBuckets? BucketsOrNull(IReadOnlyList<ProjectSummary> subset)
         {
@@ -162,7 +186,14 @@ public sealed class McpTool(
             var l = SortList(subset.Where(p => p.References == 0 && p.ReferencedBy != 0));
             var r = SortList(subset.Where(p => p.ReferencedBy == 0));
             var i = SortList(subset.Where(p => !(p.References == 0 && p.ReferencedBy != 0) && p.ReferencedBy != 0));
-            return new ProjectBuckets(l, i, r);
+
+            IReadOnlyList<ProjectSummary>? NullIfEmpty(IReadOnlyList<ProjectSummary> list)
+                => list.Count == 0 ? null : list;
+
+            return new ProjectBuckets(
+                Leaves: NullIfEmpty(l),
+                Intermediates: NullIfEmpty(i),
+                Roots: NullIfEmpty(r));
         }
 
         var libBuckets = BucketsOrNull(librariesAll);
@@ -179,20 +210,6 @@ public sealed class McpTool(
     }
 
     // Note: previous nested group format removed in favor of explicit leaf/intermediate/root buckets.
-
-    private static string? GetMsBuildLikeOutputType(Project project)
-    {
-        // Best-effort mapping from Roslyn OutputKind to MSBuild-style OutputType.
-        // MSBuild typically reports: Exe | Library | WinExe (rare).
-        return project.CompilationOptions?.OutputKind switch
-        {
-            OutputKind.DynamicallyLinkedLibrary => "Library",
-            OutputKind.ConsoleApplication => "Exe",
-            OutputKind.WindowsApplication => "WinExe",
-            OutputKind.NetModule => "NetModule",
-            _ => project.CompilationOptions?.OutputKind.ToString()
-        };
-    }
 
     private IReadOnlyList<Edge> GetEdges(Solution solution)
     {
