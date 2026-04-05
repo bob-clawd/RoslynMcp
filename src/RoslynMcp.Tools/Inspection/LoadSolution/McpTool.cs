@@ -14,23 +14,21 @@ public sealed record Result(
     ErrorInfo? Error = null)
 {
     public static Result AsError(string message, IReadOnlyDictionary<string, string>? details = null)
-        => new(null, new SolutionSummary(0, 0, 0, false, [], [], []), [], [], new ErrorInfo(message, details));
+        => new(null, new SolutionSummary(0, 0, 0, false), [], [], new ErrorInfo(message, details));
 }
 
 public sealed record SolutionSummary(
     int ProjectCount,
     int EdgeCount,
     int MaxDepth,
-    bool CycleDetected,
-    IReadOnlyList<string> Roots,
-    IReadOnlyList<string> Leaves,
-    IReadOnlyList<string> TopologicalOrder);
+    bool CycleDetected);
 
 public sealed record ProjectSummary(
     string Name,
     string? ProjectPath,
     int ReferenceCount,
-    int ReferencedByCount);
+    int ReferencedByCount,
+    string? NodeType);
 
 public sealed record Edge(
     string From,
@@ -112,7 +110,8 @@ public sealed class McpTool(
                 project.Name,
                 workspaceManager.ToRelativePathIfPossible(projectPath),
                 outgoingByPath[projectPath].Count,
-                incomingByPath[projectPath].Count));
+                incomingByPath[projectPath].Count,
+                NodeType: null));
         }
 
         // Leaves-first traversal is agent-friendly: it presents dependencies before dependents.
@@ -125,10 +124,25 @@ public sealed class McpTool(
                 .ToList(),
             edges: edges.Select(e => (e.From, e.To)).ToList());
 
-        return [.. summaries
+        var sorted = summaries
             .OrderBy(p => topo.OrderIndex.TryGetValue(p.ProjectPath ?? string.Empty, out var idx) ? idx : int.MaxValue)
             .ThenBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(p => p.Name, StringComparer.Ordinal)];
+            .ThenBy(p => p.Name, StringComparer.Ordinal)
+            .ToList();
+
+        return sorted
+            .Select(p => p with { NodeType = GetNodeType(p.ReferenceCount, p.ReferencedByCount) })
+            .ToList();
+    }
+
+    private static string? GetNodeType(int referenceCount, int referencedByCount)
+    {
+        // Prefer root over leaf when both apply (single-project solution).
+        if (referencedByCount == 0)
+            return "root";
+        if (referenceCount == 0)
+            return "leaf";
+        return null;
     }
 
     private IReadOnlyList<Edge> GetEdges(Solution solution)
@@ -174,26 +188,11 @@ public sealed class McpTool(
         var edges = GetEdges(solution);
         var topo = TopoSort(projects, edges.Select(e => (e.From, e.To)).ToList());
 
-        var outDegree = projects.ToDictionary(p => p, _ => 0, StringComparer.OrdinalIgnoreCase);
-        var inDegree = projects.ToDictionary(p => p, _ => 0, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var e in edges)
-        {
-            if (outDegree.ContainsKey(e.From)) outDegree[e.From]++;
-            if (inDegree.ContainsKey(e.To)) inDegree[e.To]++;
-        }
-
-        var roots = projects.Where(p => inDegree[p] == 0).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();
-        var leaves = projects.Where(p => outDegree[p] == 0).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();
-
         return new SolutionSummary(
             ProjectCount: projects.Count,
             EdgeCount: edges.Count,
             MaxDepth: topo.MaxDepth,
-            CycleDetected: topo.CycleDetected,
-            Roots: roots,
-            Leaves: leaves,
-            TopologicalOrder: topo.Order);
+            CycleDetected: topo.CycleDetected);
     }
 
     private static TopoSortResult TopoSort(IReadOnlyList<string> nodes, IReadOnlyList<(string from, string to)> edges)
