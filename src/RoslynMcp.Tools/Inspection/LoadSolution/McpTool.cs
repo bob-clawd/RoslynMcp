@@ -14,13 +14,12 @@ public sealed record Result(
     ErrorInfo? Error = null)
 {
     public static Result AsError(string message, IReadOnlyDictionary<string, string>? details = null)
-        => new(null, new SolutionSummary(0, 0, 0, false), [], [], new ErrorInfo(message, details));
+        => new(null, new SolutionSummary(0, 0, false), [], [], new ErrorInfo(message, details));
 }
 
 public sealed record SolutionSummary(
     int ProjectCount,
     int EdgeCount,
-    int MaxDepth,
     bool CycleDetected);
 
 public sealed record ProjectSummary(
@@ -126,16 +125,15 @@ public sealed class McpTool(
             .Select(p => p!)
             .ToList();
 
-        var topo = TopoSort(
+        _ = TopoSort(
             nodes: nodes,
             edges: edges.Select(e => (e.From, e.To)).ToList());
 
-        // For large solutions, a level-based build order is easier to scan than an arbitrary topo order.
-        // We compute a depth-from-leaves (0 for leaves) and sort by depth asc, then stable tie-breakers.
-        var depthFromLeaves = ComputeDepthFromLeaves(nodes, edges.Select(e => (e.From, e.To)).ToList());
-
+        // Group for scanability, especially on large solutions.
+        // Order: leaf -> intermediate -> root, then Library -> Exe -> WinExe -> other.
         var sorted = summaries
-            .OrderBy(p => depthFromLeaves.TryGetValue(p.ProjectPath ?? string.Empty, out var d) ? d : int.MaxValue)
+            .OrderBy(p => GetNodeTypeSortKey(p.ReferenceCount, p.ReferencedByCount))
+            .ThenBy(p => GetOutputTypeSortKey(p.OutputType))
             .ThenBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ThenBy(p => p.Name, StringComparer.Ordinal)
             .ToList();
@@ -145,7 +143,7 @@ public sealed class McpTool(
             .ToList();
     }
 
-    private static string? GetNodeType(int referenceCount, int referencedByCount)
+    private static string GetNodeType(int referenceCount, int referencedByCount)
     {
         // Prefer root over leaf when both apply (single-project solution).
         if (referencedByCount == 0)
@@ -154,6 +152,25 @@ public sealed class McpTool(
             return "leaf";
         return "intermediate";
     }
+
+    private static int GetNodeTypeSortKey(int referenceCount, int referencedByCount)
+    {
+        // leaf -> intermediate -> root
+        if (referenceCount == 0 && referencedByCount != 0)
+            return 0;
+        if (referencedByCount == 0)
+            return 2;
+        return 1;
+    }
+
+    private static int GetOutputTypeSortKey(string? outputType)
+        => outputType switch
+        {
+            "Library" => 0,
+            "Exe" => 1,
+            "WinExe" => 2,
+            _ => 3
+        };
 
     private static string? GetMsBuildLikeOutputType(Project project)
     {
@@ -215,7 +232,6 @@ public sealed class McpTool(
         return new SolutionSummary(
             ProjectCount: projects.Count,
             EdgeCount: edges.Count,
-            MaxDepth: topo.MaxDepth,
             CycleDetected: topo.CycleDetected);
     }
 
@@ -269,84 +285,11 @@ public sealed class McpTool(
         for (var i = 0; i < order.Count; i++)
             orderIndex[order[i]] = i;
 
-        var maxDepth = ComputeMaxDepth(nodes, edges, orderIndex);
-
-        return new TopoSortResult(order, orderIndex, maxDepth, cycleDetected);
-    }
-
-    private static int ComputeMaxDepth(IReadOnlyList<string> nodes, IReadOnlyList<(string from, string to)> edges, IReadOnlyDictionary<string, int> orderIndex)
-    {
-        // Compute longest path length in the dependency DAG approximation (cycles treated as broken).
-        var outgoing = nodes.ToDictionary(n => n, _ => new List<string>(), StringComparer.OrdinalIgnoreCase);
-        foreach (var (from, to) in edges)
-        {
-            if (!outgoing.ContainsKey(from) || !outgoing.ContainsKey(to))
-                continue;
-            // reverse: to -> from
-            outgoing[to].Add(from);
-        }
-
-        var depth = nodes.ToDictionary(n => n, _ => 0, StringComparer.OrdinalIgnoreCase);
-        foreach (var n in nodes.OrderBy(n => orderIndex.TryGetValue(n, out var i) ? i : int.MaxValue))
-        {
-            foreach (var m in outgoing[n])
-                depth[m] = Math.Max(depth[m], depth[n] + 1);
-        }
-
-        return depth.Count == 0 ? 0 : depth.Values.Max();
-    }
-
-    private static IReadOnlyDictionary<string, int> ComputeDepthFromLeaves(IReadOnlyList<string> nodes, IReadOnlyList<(string from, string to)> edges)
-    {
-        // Depth-from-leaves (0 for leaves) based on project-reference edges.
-        // Edge model: from -> to (dependent -> dependency).
-        // We compute longest distance to any leaf in the dependency direction.
-
-        var outgoingDeps = nodes.ToDictionary(n => n, _ => new List<string>(), StringComparer.OrdinalIgnoreCase);
-        var incomingDependents = nodes.ToDictionary(n => n, _ => new List<string>(), StringComparer.OrdinalIgnoreCase);
-        var outDegree = nodes.ToDictionary(n => n, _ => 0, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var (from, to) in edges)
-        {
-            if (!outgoingDeps.ContainsKey(from) || !outgoingDeps.ContainsKey(to))
-                continue;
-
-            outgoingDeps[from].Add(to);
-            incomingDependents[to].Add(from);
-            outDegree[from]++;
-        }
-
-        // Start from leaves (outDegree==0) with depth 0.
-        var depth = nodes.ToDictionary(n => n, _ => 0, StringComparer.OrdinalIgnoreCase);
-        var queue = new Queue<string>(nodes.Where(n => outDegree[n] == 0)
-            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase));
-
-        // Track remaining deps for each node (like reverse Kahn)
-        var remainingDeps = nodes.ToDictionary(n => n, n => outDegree[n], StringComparer.OrdinalIgnoreCase);
-
-        while (queue.Count > 0)
-        {
-            var leaf = queue.Dequeue();
-
-            foreach (var dependent in incomingDependents[leaf].OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
-            {
-                // dependent has a dependency to leaf
-                depth[dependent] = Math.Max(depth[dependent], depth[leaf] + 1);
-
-                remainingDeps[dependent]--;
-                if (remainingDeps[dependent] == 0)
-                    queue.Enqueue(dependent);
-            }
-        }
-
-        // Cycles: nodes not reached will keep default 0; this is acceptable for ordering but we still
-        // expose cycleDetected via topo summary.
-        return depth;
+        return new TopoSortResult(order, orderIndex, cycleDetected);
     }
 
     private sealed record TopoSortResult(
         IReadOnlyList<string> Order,
         IReadOnlyDictionary<string, int> OrderIndex,
-        int MaxDepth,
         bool CycleDetected);
 }
