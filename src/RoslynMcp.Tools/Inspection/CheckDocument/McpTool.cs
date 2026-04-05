@@ -38,6 +38,8 @@ public sealed class McpTool(
 		if (string.IsNullOrWhiteSpace(absolutePath))
 			return Result.AsError("document not found", new Dictionary<string, string> { ["documentPath"] = documentPath });
 
+		var normalizedFilePath = Path.GetFullPath(absolutePath);
+
 		// Resolve the document by file path.
 		// We intentionally avoid File.Exists checks here because callers may provide relative paths
 		// and the workspace can be a sandbox copy in tests.
@@ -48,7 +50,7 @@ public sealed class McpTool(
 
 		var documents = solution.Projects.SelectMany(p => p.Documents).Where(d => d.FilePath is not null).ToList();
 
-		var document = documents.FirstOrDefault(d => PathEquals(d.FilePath, absolutePath));
+		var document = documents.FirstOrDefault(d => PathEquals(d.FilePath, normalizedFilePath));
 
 		// Fallback: allow a bare filename only if it uniquely identifies a document in the solution.
 		// This avoids accidentally matching common names like Extensions.cs across multiple projects.
@@ -80,7 +82,7 @@ public sealed class McpTool(
 			.GetDiagnostics(cancellationToken)
 			.Where(d => d.Severity == DiagnosticSeverity.Error)
 			.Where(d => d.Location.IsInSource)
-			.Where(d => IsDiagnosticInFile(d, absolutePath))
+			.Where(d => IsDiagnosticInFile(d, normalizedFilePath))
 			.OrderBy(d => d.Location.GetLineSpan().StartLinePosition.Line)
 			.ThenBy(d => d.Location.GetLineSpan().StartLinePosition.Character)
 			.ThenBy(d => d.Id, StringComparer.Ordinal)
@@ -99,26 +101,27 @@ public sealed class McpTool(
 		return new Result(diagnostics);
 	}
 
-	private static bool IsDiagnosticInFile(Microsoft.CodeAnalysis.Diagnostic d, string filePath)
+	private static bool IsDiagnosticInFile(Microsoft.CodeAnalysis.Diagnostic d, string normalizedFilePath)
 	{
-		if (d.Location.SourceTree?.FilePath is { } treePath &&
-		    string.Equals(Path.GetFullPath(treePath), filePath, StringComparison.OrdinalIgnoreCase))
+		static string? NormalizeOrNull(string? path)
+			=> string.IsNullOrWhiteSpace(path) ? null : Path.GetFullPath(path);
+
+		if (NormalizeOrNull(d.Location.SourceTree?.FilePath) is { } treePath &&
+		    string.Equals(treePath, normalizedFilePath, StringComparison.OrdinalIgnoreCase))
 			return true;
 
-		var spanPath = d.Location.GetLineSpan().Path;
-		if (!string.IsNullOrWhiteSpace(spanPath) &&
-		    string.Equals(Path.GetFullPath(spanPath), filePath, StringComparison.OrdinalIgnoreCase))
+		if (NormalizeOrNull(d.Location.GetLineSpan().Path) is { } spanPath &&
+		    string.Equals(spanPath, normalizedFilePath, StringComparison.OrdinalIgnoreCase))
 			return true;
 
 		foreach (var loc in d.AdditionalLocations)
 		{
-			if (loc.SourceTree?.FilePath is { } addTreePath &&
-			    string.Equals(Path.GetFullPath(addTreePath), filePath, StringComparison.OrdinalIgnoreCase))
+			if (NormalizeOrNull(loc.SourceTree?.FilePath) is { } addTreePath &&
+			    string.Equals(addTreePath, normalizedFilePath, StringComparison.OrdinalIgnoreCase))
 				return true;
 
-			var addSpanPath = loc.GetLineSpan().Path;
-			if (!string.IsNullOrWhiteSpace(addSpanPath) &&
-			    string.Equals(Path.GetFullPath(addSpanPath), filePath, StringComparison.OrdinalIgnoreCase))
+			if (NormalizeOrNull(loc.GetLineSpan().Path) is { } addSpanPath &&
+			    string.Equals(addSpanPath, normalizedFilePath, StringComparison.OrdinalIgnoreCase))
 				return true;
 		}
 
