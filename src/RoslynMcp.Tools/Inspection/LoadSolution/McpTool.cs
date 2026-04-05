@@ -9,12 +9,12 @@ namespace RoslynMcp.Tools.Inspection.LoadSolution;
 public sealed record Result(
     string? Path,
     SolutionSummary Summary,
-    IReadOnlyList<OutputTypeGroup> Groups,
+    ProjectBuckets Projects,
     IReadOnlyList<Edge> Edges,
     ErrorInfo? Error = null)
 {
     public static Result AsError(string message, IReadOnlyDictionary<string, string>? details = null)
-        => new(null, new SolutionSummary(0, 0, false), [], [], new ErrorInfo(message, details));
+        => new(null, new SolutionSummary(0, 0, false), new ProjectBuckets([], [], []), [], new ErrorInfo(message, details));
 }
 
 public sealed record SolutionSummary(
@@ -30,17 +30,10 @@ public sealed record ProjectSummary(
     int ReferencedByCount,
     string? NodeType);
 
-public sealed record NodeTypeGroup(
-    string NodeType,
-    string DisplayName,
-    int Count,
-    IReadOnlyList<ProjectSummary> Projects);
-
-public sealed record OutputTypeGroup(
-    string OutputType,
-    string DisplayName,
-    int Count,
-    IReadOnlyList<NodeTypeGroup> Groups);
+public sealed record ProjectBuckets(
+    IReadOnlyList<ProjectSummary> Leaves,
+    IReadOnlyList<ProjectSummary> Intermediates,
+    IReadOnlyList<ProjectSummary> Roots);
 
 public sealed record Edge(
     string From,
@@ -77,11 +70,11 @@ public sealed class McpTool(
         return new Result(
             workspaceManager.ToRelativePathIfPossible(solutionPath),
             GetSolutionSummary(solution),
-            GetProjectGroups(solution),
+            GetProjectBuckets(solution),
             GetEdges(solution));
     }
 
-    private IReadOnlyList<OutputTypeGroup> GetProjectGroups(Solution solution)
+    private ProjectBuckets GetProjectBuckets(Solution solution)
     {
         var outgoingByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         var incomingByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
@@ -140,37 +133,23 @@ public sealed class McpTool(
             nodes: nodes,
             edges: edges.Select(e => (e.From, e.To)).ToList());
 
-        // Attach nodeType and build nested groups:
-        // level 1: outputType (Library, Exe, WinExe, ...)
-        // level 2: nodeType (leaf, intermediate, root)
+        // Attach nodeType and split into buckets.
         var withTypes = summaries
             .Select(p => p with { NodeType = GetNodeType(p.ReferenceCount, p.ReferencedByCount) })
             .ToList();
 
-        var outputTypeGroups = withTypes
-            .GroupBy(p => p.OutputType ?? "(unknown)", StringComparer.OrdinalIgnoreCase)
-            .Select(otg => new OutputTypeGroup(
-                OutputType: otg.Key,
-                DisplayName: GetOutputTypeDisplayName(otg.Key),
-                Count: otg.Count(),
-                Groups: otg
-                    .GroupBy(p => p.NodeType ?? "(unknown)", StringComparer.OrdinalIgnoreCase)
-                    .Select(ntg => new NodeTypeGroup(
-                        NodeType: ntg.Key,
-                        DisplayName: GetNodeTypeDisplayName(ntg.Key),
-                        Count: ntg.Count(),
-                        Projects: ntg
-                            .OrderBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-                            .ThenBy(p => p.Name, StringComparer.Ordinal)
-                            .ToList()))
-                    // omit empty combos by construction
-                    .OrderBy(g => GetNodeTypeOrder(g.NodeType))
-                    .ToList()))
-            .OrderBy(g => GetOutputTypeSortKey(g.OutputType))
-            .ThenBy(g => g.OutputType, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        static IReadOnlyList<ProjectSummary> Sort(IReadOnlyList<ProjectSummary> list)
+            => list
+                .OrderBy(p => GetOutputTypeSortKey(p.OutputType))
+                .ThenBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(p => p.Name, StringComparer.Ordinal)
+                .ToList();
 
-        return outputTypeGroups;
+        var leaves = Sort(withTypes.Where(p => p.NodeType == "leaf").ToList());
+        var intermediates = Sort(withTypes.Where(p => p.NodeType == "intermediate").ToList());
+        var roots = Sort(withTypes.Where(p => p.NodeType == "root").ToList());
+
+        return new ProjectBuckets(leaves, intermediates, roots);
     }
 
     private static string GetNodeType(int referenceCount, int referencedByCount)
@@ -192,32 +171,7 @@ public sealed class McpTool(
             _ => 3
         };
 
-    private static int GetNodeTypeOrder(string nodeType)
-        => nodeType switch
-        {
-            "leaf" => 0,
-            "intermediate" => 1,
-            "root" => 2,
-            _ => 3
-        };
-
-    private static string GetOutputTypeDisplayName(string outputType)
-        => outputType switch
-        {
-            "Library" => "Libraries",
-            "Exe" => "Executables",
-            "WinExe" => "Windows executables",
-            _ => outputType
-        };
-
-    private static string GetNodeTypeDisplayName(string nodeType)
-        => nodeType switch
-        {
-            "leaf" => "Leaves",
-            "intermediate" => "Intermediates",
-            "root" => "Roots",
-            _ => nodeType
-        };
+    // Note: previous nested group format removed in favor of explicit leaf/intermediate/root buckets.
 
     private static string? GetMsBuildLikeOutputType(Project project)
     {
