@@ -97,6 +97,10 @@ public sealed class McpTool(
 
     private ProjectOutputBuckets GetProjectBuckets(Solution solution)
     {
+        var edges = GetEdges(solution);
+
+        var cycleDetected = DetectCycle(solution, edges);
+
         var outgoingByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         var incomingByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
@@ -132,9 +136,13 @@ public sealed class McpTool(
             if (string.IsNullOrWhiteSpace(projectPath))
                 continue;
 
+            var relativeProjectPath = workspaceManager.ToRelativePathIfPossible(projectPath);
+            if (string.IsNullOrWhiteSpace(relativeProjectPath))
+                continue;
+
             summaries.Add(new ProjectSummary(
                 project.Name,
-                workspaceManager.ToRelativePathIfPossible(projectPath),
+                relativeProjectPath,
                 References: outgoingByPath[projectPath].Count,
                 ReferencedBy: incomingByPath[projectPath].Count));
         }
@@ -228,6 +236,18 @@ public sealed class McpTool(
             Unknown: unkBuckets);
     }
 
+    private bool DetectCycle(Solution solution, IReadOnlyList<Edge> edges)
+    {
+        var nodes = solution.Projects
+            .Select(p => workspaceManager.ToRelativePathIfPossible(p.FilePath ?? string.Empty))
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return TopoSort(nodes, edges.Select(e => (e.From, e.To)).ToList()).CycleDetected;
+    }
+
     // Note: previous nested group format removed in favor of explicit leaf/intermediate/root buckets.
 
     private IReadOnlyList<Edge> GetEdges(Solution solution)
@@ -241,6 +261,8 @@ public sealed class McpTool(
                 continue;
 
             var from = workspaceManager.ToRelativePathIfPossible(fromPathAbs);
+            if (string.IsNullOrWhiteSpace(from))
+                continue;
 
             foreach (var reference in project.ProjectReferences)
             {
@@ -250,6 +272,8 @@ public sealed class McpTool(
                     continue;
 
                 var to = workspaceManager.ToRelativePathIfPossible(toPathAbs);
+                if (string.IsNullOrWhiteSpace(to))
+                    continue;
                 edges.Add(new Edge(from, to));
             }
         }
