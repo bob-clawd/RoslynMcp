@@ -36,7 +36,7 @@ public sealed record ProjectOutputBuckets(
 public sealed record EdgeInfo(
     int Count,
     bool CycleDetected,
-    IReadOnlyList<Edge> Items);
+    IReadOnlyList<Edge> Edges);
 
 public sealed record Edge(
     string From,
@@ -92,7 +92,7 @@ public sealed class McpTool(
         return new EdgeInfo(
             Count: edges.Count,
             CycleDetected: topo.CycleDetected,
-            Items: edges);
+            Edges: edges);
     }
 
     private ProjectOutputBuckets GetProjectBuckets(Solution solution)
