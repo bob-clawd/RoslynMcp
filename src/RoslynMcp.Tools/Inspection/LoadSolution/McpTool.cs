@@ -13,7 +13,7 @@ public sealed record Result(
     ErrorInfo? Error = null)
 {
     public static Result AsError(string message, IReadOnlyDictionary<string, string>? details = null)
-        => new(null, new ProjectOutputBuckets(null, null, null, 0), new EdgeInfo(0, false, []), new ErrorInfo(message, details));
+        => new(null, new ProjectOutputBuckets(0, null, null, null, null), new EdgeInfo(0, false, []), new ErrorInfo(message, details));
 }
 
 public sealed record ProjectSummary(
@@ -28,10 +28,11 @@ public sealed record ProjectBuckets(
     IReadOnlyList<ProjectSummary>? Roots);
 
 public sealed record ProjectOutputBuckets(
+    int Count,
+    IReadOnlyList<ProjectSummary>? All,
     ProjectBuckets? Libraries,
     ProjectBuckets? Executables,
-    ProjectBuckets? Unknown,
-    int Count);
+    ProjectBuckets? Unknown);
 
 public sealed record EdgeInfo(
     int Count,
@@ -213,10 +214,11 @@ public sealed class McpTool(
         var unkBuckets = BucketsOrNull(unknownAll);
 
         return new ProjectOutputBuckets(
+            Count: summaries.Count,
+            All: SortList(summaries),
             Libraries: libBuckets,
             Executables: exeBuckets,
-            Unknown: unkBuckets,
-            Count: summaries.Count);
+            Unknown: unkBuckets);
     }
 
     // Note: previous nested group format removed in favor of explicit leaf/intermediate/root buckets.
