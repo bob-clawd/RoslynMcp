@@ -152,9 +152,12 @@ public sealed class McpTool(
         // - Executables: OutputType == "Exe" or "WinExe"
         // - Unknown: anything else (including null/NetModule)
 
+        var orderIndex = GetProjectOrderIndex(solution, edges);
+
         IReadOnlyList<ProjectSummary> SortList(IEnumerable<ProjectSummary> list)
             => list
-                .OrderBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(p => p.ProjectPath is not null && orderIndex.TryGetValue(p.ProjectPath, out var idx) ? idx : int.MaxValue)
+                .ThenBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(p => p.Name, StringComparer.Ordinal)
                 .ToList();
 
@@ -177,11 +180,19 @@ public sealed class McpTool(
             };
         }
 
-        var pathToRole = solution.Projects
-            .Where(p => !string.IsNullOrWhiteSpace(p.FilePath))
-            .Select(p => (Path: workspaceManager.ToRelativePathIfPossible(p.FilePath!), Role: GetOutputRole(p)))
-            .Where(x => !string.IsNullOrWhiteSpace(x.Path))
-            .ToDictionary(x => x.Path!, x => x.Role, StringComparer.OrdinalIgnoreCase);
+        var pathToRole = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var project in solution.Projects)
+        {
+            if (string.IsNullOrWhiteSpace(project.FilePath))
+                continue;
+
+            var path = workspaceManager.ToRelativePathIfPossible(project.FilePath);
+            if (string.IsNullOrWhiteSpace(path))
+                continue;
+
+            // Best-effort: if duplicates exist, keep the first one.
+            pathToRole.TryAdd(path, GetOutputRole(project));
+        }
 
         var librariesAll = new List<ProjectSummary>();
         var executablesAll = new List<ProjectSummary>();
@@ -246,6 +257,21 @@ public sealed class McpTool(
             .ToList();
 
         return TopoSort(nodes, edges.Select(e => (e.From, e.To)).ToList()).CycleDetected;
+    }
+
+    private IReadOnlyDictionary<string, int> GetProjectOrderIndex(Solution solution, IReadOnlyList<Edge> edges)
+    {
+        var nodes = solution.Projects
+            .Select(p => workspaceManager.ToRelativePathIfPossible(p.FilePath ?? string.Empty))
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // If there are no cycles, topo order provides a dependency-respecting stable order.
+        // Even with cycles, we append remaining nodes deterministically.
+        return TopoSort(nodes, edges.Select(e => (e.From, e.To)).ToList()).OrderIndex;
     }
 
     // Note: previous nested group format removed in favor of explicit leaf/intermediate/root buckets.
