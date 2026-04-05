@@ -9,7 +9,7 @@ namespace RoslynMcp.Tools.Inspection.LoadSolution;
 public sealed record Result(
     string? Path,
     SolutionSummary Summary,
-    IReadOnlyList<ProjectSummary> Projects,
+    IReadOnlyList<OutputTypeGroup> Groups,
     IReadOnlyList<Edge> Edges,
     ErrorInfo? Error = null)
 {
@@ -29,6 +29,16 @@ public sealed record ProjectSummary(
     int ReferenceCount,
     int ReferencedByCount,
     string? NodeType);
+
+public sealed record NodeTypeGroup(
+    string NodeType,
+    int Count,
+    IReadOnlyList<ProjectSummary> Projects);
+
+public sealed record OutputTypeGroup(
+    string OutputType,
+    int Count,
+    IReadOnlyList<NodeTypeGroup> Groups);
 
 public sealed record Edge(
     string From,
@@ -65,11 +75,11 @@ public sealed class McpTool(
         return new Result(
             workspaceManager.ToRelativePathIfPossible(solutionPath),
             GetSolutionSummary(solution),
-            GetProjects(solution),
+            GetProjectGroups(solution),
             GetEdges(solution));
     }
-    
-    private IReadOnlyList<ProjectSummary> GetProjects(Solution solution)
+
+    private IReadOnlyList<OutputTypeGroup> GetProjectGroups(Solution solution)
     {
         var outgoingByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         var incomingByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
@@ -117,8 +127,7 @@ public sealed class McpTool(
                 NodeType: null));
         }
 
-        // Leaves-first traversal is agent-friendly: it presents dependencies before dependents.
-        // Provide a stable topo order for the full graph (via Edges) and sort projects accordingly.
+        // Validate graph / detect cycles (not used for sorting anymore).
         var edges = GetEdges(solution);
         var nodes = summaries.Select(p => p.ProjectPath)
             .Where(p => !string.IsNullOrWhiteSpace(p))
@@ -129,18 +138,35 @@ public sealed class McpTool(
             nodes: nodes,
             edges: edges.Select(e => (e.From, e.To)).ToList());
 
-        // Group for scanability, especially on large solutions.
-        // Order: leaf -> intermediate -> root, then Library -> Exe -> WinExe -> other.
-        var sorted = summaries
-            .OrderBy(p => GetNodeTypeSortKey(p.ReferenceCount, p.ReferencedByCount))
-            .ThenBy(p => GetOutputTypeSortKey(p.OutputType))
-            .ThenBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(p => p.Name, StringComparer.Ordinal)
-            .ToList();
-
-        return sorted
+        // Attach nodeType and build nested groups:
+        // level 1: outputType (Library, Exe, WinExe, ...)
+        // level 2: nodeType (leaf, intermediate, root)
+        var withTypes = summaries
             .Select(p => p with { NodeType = GetNodeType(p.ReferenceCount, p.ReferencedByCount) })
             .ToList();
+
+        var outputTypeGroups = withTypes
+            .GroupBy(p => p.OutputType ?? "(unknown)", StringComparer.OrdinalIgnoreCase)
+            .Select(otg => new OutputTypeGroup(
+                OutputType: otg.Key,
+                Count: otg.Count(),
+                Groups: otg
+                    .GroupBy(p => p.NodeType ?? "(unknown)", StringComparer.OrdinalIgnoreCase)
+                    .Select(ntg => new NodeTypeGroup(
+                        NodeType: ntg.Key,
+                        Count: ntg.Count(),
+                        Projects: ntg
+                            .OrderBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                            .ThenBy(p => p.Name, StringComparer.Ordinal)
+                            .ToList()))
+                    // omit empty combos by construction
+                    .OrderBy(g => GetNodeTypeOrder(g.NodeType))
+                    .ToList()))
+            .OrderBy(g => GetOutputTypeSortKey(g.OutputType))
+            .ThenBy(g => g.OutputType, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return outputTypeGroups;
     }
 
     private static string GetNodeType(int referenceCount, int referencedByCount)
@@ -153,22 +179,21 @@ public sealed class McpTool(
         return "intermediate";
     }
 
-    private static int GetNodeTypeSortKey(int referenceCount, int referencedByCount)
-    {
-        // leaf -> intermediate -> root
-        if (referenceCount == 0 && referencedByCount != 0)
-            return 0;
-        if (referencedByCount == 0)
-            return 2;
-        return 1;
-    }
-
     private static int GetOutputTypeSortKey(string? outputType)
         => outputType switch
         {
             "Library" => 0,
             "Exe" => 1,
             "WinExe" => 2,
+            _ => 3
+        };
+
+    private static int GetNodeTypeOrder(string nodeType)
+        => nodeType switch
+        {
+            "leaf" => 0,
+            "intermediate" => 1,
+            "root" => 2,
             _ => 3
         };
 
