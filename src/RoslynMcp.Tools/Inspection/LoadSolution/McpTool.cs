@@ -36,7 +36,7 @@ public sealed record ProjectOutputBuckets(
 public sealed record EdgeInfo(
     int Count,
     bool CycleDetected,
-    IReadOnlyList<Edge> References);
+    IReadOnlyList<Edge> Edges);
 
 public sealed record Edge(
     string From,
@@ -92,14 +92,24 @@ public sealed class McpTool(
         return new EdgeInfo(
             Count: edges.Count,
             CycleDetected: topo.CycleDetected,
-            References: edges);
+            Edges: edges);
     }
 
     private ProjectOutputBuckets GetProjectBuckets(Solution solution)
     {
         var edges = GetEdges(solution);
 
-        var cycleDetected = DetectCycle(solution, edges);
+        var nodes = solution.Projects
+            .Select(p => workspaceManager.ToRelativePathIfPossible(p.FilePath ?? string.Empty))
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // If there are no cycles, topo order provides a dependency-respecting stable order.
+        // Even with cycles, we append remaining nodes deterministically.
+        var topo = TopoSort(nodes, edges.Select(e => (e.From, e.To)).ToList());
 
         var outgoingByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         var incomingByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
@@ -152,7 +162,7 @@ public sealed class McpTool(
         // - Executables: OutputType == "Exe" or "WinExe"
         // - Unknown: anything else (including null/NetModule)
 
-        var orderIndex = GetProjectOrderIndex(solution, edges);
+        var orderIndex = topo.OrderIndex;
 
         IReadOnlyList<ProjectSummary> SortList(IEnumerable<ProjectSummary> list)
             => list
@@ -245,33 +255,6 @@ public sealed class McpTool(
             Libraries: libBuckets,
             Executables: exeBuckets,
             Unknown: unkBuckets);
-    }
-
-    private bool DetectCycle(Solution solution, IReadOnlyList<Edge> edges)
-    {
-        var nodes = solution.Projects
-            .Select(p => workspaceManager.ToRelativePathIfPossible(p.FilePath ?? string.Empty))
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Select(p => p!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        return TopoSort(nodes, edges.Select(e => (e.From, e.To)).ToList()).CycleDetected;
-    }
-
-    private IReadOnlyDictionary<string, int> GetProjectOrderIndex(Solution solution, IReadOnlyList<Edge> edges)
-    {
-        var nodes = solution.Projects
-            .Select(p => workspaceManager.ToRelativePathIfPossible(p.FilePath ?? string.Empty))
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Select(p => p!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        // If there are no cycles, topo order provides a dependency-respecting stable order.
-        // Even with cycles, we append remaining nodes deterministically.
-        return TopoSort(nodes, edges.Select(e => (e.From, e.To)).ToList()).OrderIndex;
     }
 
     // Note: previous nested group format removed in favor of explicit leaf/intermediate/root buckets.
