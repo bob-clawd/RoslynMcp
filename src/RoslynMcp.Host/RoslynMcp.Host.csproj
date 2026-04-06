@@ -12,7 +12,8 @@
                           Version="10.0.3" />
         <PackageReference Include="Microsoft.Extensions.Logging.Console"
                           Version="10.0.3" />
-        <PackageReference Include="ModelContextProtocol" Version="1.1.0" />
+        <PackageReference Include="ModelContextProtocol"
+                          Version="1.1.0" />
     </ItemGroup>
     <PropertyGroup>
         <OutputType>Exe</OutputType>
@@ -24,7 +25,7 @@
         <PackageId>RoslynMcp</PackageId>
         <PackAsTool>true</PackAsTool>
         <ToolCommandName>roslynmcp</ToolCommandName>
-        <Version>1.0.1</Version>
+        <Version>1.1.0</Version>
         <Authors>chrismo80</Authors>
         <Description>Roslyn-based MCP server for semantic C# analysis.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
