@@ -53,13 +53,54 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 - **Symbol resolution** — Understands types, methods, properties across your entire solution
 - **Call graph tracing** — See how code flows through your system
 
-## Recommended Tool Workflow
+## Recommended Workflows
 
-1. `load_solution`
-2. `load_project` or `search_type` / `search_member`
-3. `load_type` or `load_member`
-4. `check_document`
-5. `run_tests`
+Choose the entry point based on what you already know.
+
+```mermaid
+flowchart TD
+    Start([Start]) --> LoadSolution[load_solution]
+
+    LoadSolution --> WhatKnown{What do you know?}
+
+    WhatKnown -->|A project path| LoadProject[load_project]
+    LoadProject --> LoadType[load_type]
+    LoadType --> LoadMember[load_member]
+
+    WhatKnown -->|A type name| SearchType[search_type]
+    SearchType --> TypeUnique{Unique match?}
+    TypeUnique -->|Yes| LoadType
+    TypeUnique -->|No| PickType[Pick a typeSymbolId and run load_type]
+
+    WhatKnown -->|A member name| SearchMember[search_member]
+    SearchMember --> MemberUnique{Unique match?}
+    MemberUnique -->|Yes| LoadMember
+    MemberUnique -->|No| PickMember[Pick a memberSymbolId and run load_member]
+
+    LoadSolution --> EditedFile{Edited a file?}
+    EditedFile -->|Yes| CheckDocument[check_document]
+
+    LoadMember --> RunTests[run_tests]
+    LoadType --> RunTests
+    CheckDocument --> RunTests
+```
+
+### Typical paths
+
+- **I know the project**  
+  `load_solution` → `load_project` → `load_type` → `load_member`
+
+- **I only know a type name**  
+  `load_solution` → `search_type`
+
+- **I only know a member name**  
+  `load_solution` → `search_member`
+
+- **I changed a file and want quick validation**  
+  `load_solution` → `check_document`
+
+- **I want broader verification**  
+  `run_tests`
 
 This keeps navigation semantic and symbol-aware without relying on text-only search, while still giving you fast search and file-level validation when you need it.
 
