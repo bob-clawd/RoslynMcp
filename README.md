@@ -78,23 +78,6 @@ flowchart TD
     linkStyle default stroke:#9ca3af,stroke-width:1.5px;
 ```
 
-### Typical paths
-
-- **I know the project**  
-  `load_solution` → `load_project` → `load_type` → `load_member`
-
-- **I only know a type name**  
-  `load_solution` → `search_type`
-
-- **I only know a member name**  
-  `load_solution` → `search_member`
-
-- **I changed a file and want quick validation**  
-  `load_solution` → `check_document`
-
-- **I want broader verification**  
-  `run_tests`
-
 This keeps navigation semantic and symbol-aware without relying on text-only search, while still giving you fast search and file-level validation when you need it.
 
 The full tool descriptions can be [found here](https://github.com/chrismo80/RoslynMcp/blob/main/TOOLS.md)
