@@ -58,6 +58,7 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 Choose the entry point based on what you already know.
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": { "background": "transparent" }}}%%
 flowchart TD
     ls[load_solution] --> lp[load_project]
     lp --> lt[load_type]
@@ -71,6 +72,10 @@ flowchart TD
 
     lm --> cd[check_document]
     cd --> rt[run_tests]
+
+    classDef tool fill:#1f2937,stroke:#9ca3af,color:#f9fafb;
+    class ls,lp,lt,lm,st,sm,cd,rt tool;
+    linkStyle default stroke:#9ca3af,stroke-width:1.5px;
 ```
 
 ### Typical paths
