@@ -12,7 +12,7 @@ public class CheckDocument(ITestOutputHelper o) : Tests<McpTool>
 	{
 		LoadSolution();
 
-		var result = await Sut.Execute(CancellationToken.None, "TestSolution/ProjectApp/AppOrchestrator.cs");
+		var result = await Sut.Execute(CancellationToken.None, Path.Combine(WorkspaceDirectory, "ProjectApp", "AppOrchestrator.cs"));
 		o.WriteLine(result.ToJson());
 
 		result.Error.IsNull();

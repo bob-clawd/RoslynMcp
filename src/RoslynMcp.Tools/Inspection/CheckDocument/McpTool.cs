@@ -34,40 +34,25 @@ public sealed class McpTool(
 		if (string.IsNullOrWhiteSpace(documentPath))
 			return Result.AsError("documentPath is required");
 
-		var absolutePath = Path.GetFullPath(workspaceManager.ToAbsolutePath(documentPath));
+		// Policy (per Moldi): only accept absolute paths or paths relative to the workspace.
+		// Path normalization / resolution is delegated to WorkspaceManager.
+		var absolutePath = workspaceManager.ToAbsolutePath(documentPath);
 		if (string.IsNullOrWhiteSpace(absolutePath))
 			return Result.AsError("document not found", new Dictionary<string, string> { ["documentPath"] = documentPath });
 
-		var normalizedFilePath = Path.GetFullPath(absolutePath);
+		// We compare relative paths inside the workspace to avoid fragile absolute path normalization.
+		var relativePath = workspaceManager.ToRelativePathIfPossible(absolutePath);
+		var relativeInputPath = workspaceManager.ToRelativePathIfPossible(documentPath);
 
 		// Resolve the document by file path.
 		// We intentionally avoid File.Exists checks here because callers may provide relative paths
 		// and the workspace can be a sandbox copy in tests.
-		static bool PathEquals(string? left, string? right)
-			=> !string.IsNullOrWhiteSpace(left) &&
-			   !string.IsNullOrWhiteSpace(right) &&
-			   string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
-
 		var documents = solution.Projects.SelectMany(p => p.Documents).Where(d => d.FilePath is not null).ToList();
 
-		var document = documents.FirstOrDefault(d => PathEquals(d.FilePath, normalizedFilePath));
-
-		// Fallback: allow a bare filename only if it uniquely identifies a document in the solution.
-		// This avoids accidentally matching common names like Extensions.cs across multiple projects.
-		if (document is null)
-		{
-			var fileName = Path.GetFileName(documentPath.Trim());
-			if (!string.IsNullOrWhiteSpace(fileName))
-			{
-				var candidates = documents
-					.Where(d => string.Equals(Path.GetFileName(d.FilePath!), fileName, StringComparison.OrdinalIgnoreCase))
-					.Take(2)
-					.ToList();
-
-				if (candidates.Count == 1)
-					document = candidates[0];
-			}
-		}
+		var document = documents.FirstOrDefault(d =>
+			string.Equals(d.FilePath, absolutePath, StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(workspaceManager.ToRelativePathIfPossible(d.FilePath), relativePath, StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(workspaceManager.ToRelativePathIfPossible(d.FilePath), relativeInputPath, StringComparison.OrdinalIgnoreCase));
 
 		if (document is null)
 			return Result.AsError("document not in solution", new Dictionary<string, string> { ["documentPath"] = documentPath });
@@ -82,7 +67,7 @@ public sealed class McpTool(
 			.GetDiagnostics(cancellationToken)
 			.Where(d => d.Severity == DiagnosticSeverity.Error)
 			.Where(d => d.Location.IsInSource)
-			.Where(d => IsDiagnosticInFile(d, normalizedFilePath))
+			.Where(d => IsDiagnosticInFile(d, workspaceManager, relativePath))
 			.OrderBy(d => d.Location.GetLineSpan().StartLinePosition.Line)
 			.ThenBy(d => d.Location.GetLineSpan().StartLinePosition.Character)
 			.ThenBy(d => d.Id, StringComparer.Ordinal)
@@ -101,27 +86,21 @@ public sealed class McpTool(
 		return new Result(diagnostics);
 	}
 
-	private static bool IsDiagnosticInFile(Microsoft.CodeAnalysis.Diagnostic d, string normalizedFilePath)
+	private static bool IsDiagnosticInFile(Microsoft.CodeAnalysis.Diagnostic d, WorkspaceManager workspaceManager, string? targetRelativePath)
 	{
-		static string? NormalizeOrNull(string? path)
-			=> string.IsNullOrWhiteSpace(path) ? null : Path.GetFullPath(path);
+		static bool EqualsRel(string? a, string? b)
+			=> !string.IsNullOrWhiteSpace(a) &&
+			   !string.IsNullOrWhiteSpace(b) &&
+			   string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
-		if (NormalizeOrNull(d.Location.SourceTree?.FilePath) is { } treePath &&
-		    string.Equals(treePath, normalizedFilePath, StringComparison.OrdinalIgnoreCase))
-			return true;
-
-		if (NormalizeOrNull(d.Location.GetLineSpan().Path) is { } spanPath &&
-		    string.Equals(spanPath, normalizedFilePath, StringComparison.OrdinalIgnoreCase))
+		var locationPath = d.Location.SourceTree?.FilePath ?? d.Location.GetLineSpan().Path;
+		if (EqualsRel(workspaceManager.ToRelativePathIfPossible(locationPath), targetRelativePath))
 			return true;
 
 		foreach (var loc in d.AdditionalLocations)
 		{
-			if (NormalizeOrNull(loc.SourceTree?.FilePath) is { } addTreePath &&
-			    string.Equals(addTreePath, normalizedFilePath, StringComparison.OrdinalIgnoreCase))
-				return true;
-
-			if (NormalizeOrNull(loc.GetLineSpan().Path) is { } addSpanPath &&
-			    string.Equals(addSpanPath, normalizedFilePath, StringComparison.OrdinalIgnoreCase))
+			var addPath = loc.SourceTree?.FilePath ?? loc.GetLineSpan().Path;
+			if (EqualsRel(workspaceManager.ToRelativePathIfPossible(addPath), targetRelativePath))
 				return true;
 		}
 
