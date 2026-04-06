@@ -36,6 +36,7 @@ public sealed class SearchType : LoadedSolutionTests<McpTool>
         var result = await Sut.Execute(CancellationToken.None, query: "Load");
 
         result.Type.IsNull();
+        result.Truncated.IsNull();
         result.Error.IsNull();
         result.Matches.Count.IsGreaterThan(1);
 
@@ -85,5 +86,16 @@ public sealed class SearchType : LoadedSolutionTests<McpTool>
         delegateResult.Error.IsNull();
         delegateResult.Type.IsNotNull();
         delegateResult.Type!.Symbol!.DisplayName.Is("InnerDelegate");
+    }
+
+    [Fact]
+    public async Task BroadMatch_TruncatesResultList()
+    {
+        var result = await Sut.Execute(CancellationToken.None, query: "SearchTypeOverflow");
+
+        result.Error.IsNull();
+        result.Type.IsNull();
+        result.Truncated.Is(true);
+        result.Matches.Count.Is(50);
     }
 }

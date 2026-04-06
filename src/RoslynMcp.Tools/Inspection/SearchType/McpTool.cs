@@ -13,10 +13,11 @@ public sealed record Match(string FullName, string ProjectPath);
 public sealed record Result(
     IReadOnlyList<Match> Matches,
     Inspection.LoadType.Result? Type = null,
+    bool? Truncated = null,
     ErrorInfo? Error = null)
 {
     public static Result AsError(string message, IReadOnlyDictionary<string, string>? details = null)
-        => new([], null, new ErrorInfo(message, details));
+        => new([], null, null, new ErrorInfo(message, details));
 }
 
 [McpServerToolType]
@@ -62,14 +63,26 @@ public sealed class McpTool(
         // If ambiguous: keep output small.
         if (candidates.Count != 1)
         {
-            return new Result(
-                candidates
-                    .Select(m => new Match(
-                        m.FullName,
-                        workspaceManager.ToRelativePathIfPossible(m.ProjectPath) ?? m.ProjectPath))
-                    .OrderBy(m => m.FullName, StringComparer.Ordinal)
-                    .ThenBy(m => m.ProjectPath, StringComparer.OrdinalIgnoreCase)
-                    .ToList());
+            const int maxMatches = 50;
+
+            var ordered = candidates
+                .OrderBy(m => m.FullName, StringComparer.Ordinal)
+                .ThenBy(m => m.ProjectPath, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var truncated = ordered.Count > maxMatches;
+            if (truncated)
+                ordered = ordered.Take(maxMatches).ToList();
+
+            var matches = ordered
+                .Select(m => new Match(
+                    m.FullName,
+                    workspaceManager.ToRelativePathIfPossible(m.ProjectPath) ?? m.ProjectPath))
+                .ToList();
+
+            return truncated
+                ? new Result(matches, Truncated: true)
+                : new Result(matches);
         }
 
         // If exactly one match: resolve to a stable symbol id and immediately return load_type.

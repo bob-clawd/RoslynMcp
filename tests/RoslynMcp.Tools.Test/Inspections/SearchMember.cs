@@ -63,4 +63,16 @@ public class SearchMember(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 		result.Member.IsNull();
 		(result.Matches.Count >= 2).IsTrue();
 	}
+
+	[Fact]
+	public async Task PartialMethodDeclarations_AreCollapsedIntoOneMatch()
+	{
+		var result = await Sut.Execute(CancellationToken.None, "Notify");
+		o.WriteLine(result.ToJson());
+
+		result.Error.IsNull();
+		result.Matches.Count.Is(0);
+		result.Member.IsNotNull();
+		result.Member!.Symbol!.DisplayName.Contains("Notify").IsTrue();
+	}
 }

@@ -13,11 +13,11 @@ public sealed record Match(string FullName, string ProjectPath, string? Location
 public sealed record Result(
     IReadOnlyList<Match> Matches,
     Inspection.LoadMember.Result? Member = null,
-    bool Truncated = false,
+    bool? Truncated = null,
     ErrorInfo? Error = null)
 {
     public static Result AsError(string message, IReadOnlyDictionary<string, string>? details = null)
-        => new([], null, false, new ErrorInfo(message, details));
+        => new([], null, null, new ErrorInfo(message, details));
 }
 
 [McpServerToolType]
@@ -55,9 +55,9 @@ public sealed class McpTool(
         if (candidates.Any(m => m.IsHandwritten))
             candidates.RemoveAll(m => !m.IsHandwritten);
 
-        // Deduplicate exact duplicates first (same declaration).
+        // Collapse repeated declarations of the same member identity while keeping real overloads distinct.
         candidates = candidates
-            .DistinctBy(m => (m.DocumentId, m.Span, m.Kind))
+            .DistinctBy(m => (m.FullName, m.ProjectPath, m.Kind, m.Signature))
             .ToList();
 
         // Prefer exact name matches: if the user searched for "Duration", and there are candidates named exactly
@@ -84,17 +84,18 @@ public sealed class McpTool(
             if (truncated)
                 ordered = ordered.Take(maxMatches).ToList();
 
-            return new Result(
-                ordered
-                    .Select(m => new Match(
-                        m.FullName,
-                        workspaceManager.ToRelativePathIfPossible(m.ProjectPath) ?? m.ProjectPath,
-                        workspaceManager.ToRelativePathIfPossible(m.Location) ?? m.Location,
-                        m.Kind,
-                        m.Signature))
-                    .ToList(),
-                Member: null,
-                Truncated: truncated);
+            var matches = ordered
+                .Select(m => new Match(
+                    m.FullName,
+                    workspaceManager.ToRelativePathIfPossible(m.ProjectPath) ?? m.ProjectPath,
+                    workspaceManager.ToRelativePathIfPossible(m.Location) ?? m.Location,
+                    m.Kind,
+                    m.Signature))
+                .ToList();
+
+            return truncated
+                ? new Result(matches, Truncated: true)
+                : new Result(matches);
         }
 
         // If exactly one match: resolve to a stable symbol id and immediately return load_member.
@@ -258,18 +259,15 @@ public sealed class McpTool(
             return;
 
 		var ns = declarationNode.GetNamespaceName();
-		var container = declarationNode.GetContainingTypeChain();
-		var memberIdentity = string.IsNullOrWhiteSpace(container) ? name : $"{container}.{name}";
-		var fullName = string.IsNullOrWhiteSpace(ns) ? memberIdentity : $"{ns}.{memberIdentity}";
+        var container = declarationNode.GetContainingTypeChain();
+        var explicitInterfacePrefix = GetExplicitInterfacePrefix(declarationNode);
+        var memberName = string.IsNullOrWhiteSpace(explicitInterfacePrefix) ? name : $"{explicitInterfacePrefix}.{name}";
+        var memberIdentity = string.IsNullOrWhiteSpace(container) ? memberName : $"{container}.{memberName}";
+        var fullName = string.IsNullOrWhiteSpace(ns) ? memberIdentity : $"{ns}.{memberIdentity}";
 
         var location = document.FilePath;
 
-        var signature = kind switch
-        {
-            "method" => (declarationNode as MethodDeclarationSyntax)?.ParameterList?.ToString(),
-            "ctor" => (declarationNode as ConstructorDeclarationSyntax)?.ParameterList?.ToString(),
-            _ => null
-        };
+        var signature = GetSignature(kind, declarationNode);
 
         matches.Add(new FoundMatch(
             fullName,
@@ -282,6 +280,28 @@ public sealed class McpTool(
             signature,
             document.FilePath.IsHandwritten()));
     }
+
+    private static string? GetExplicitInterfacePrefix(SyntaxNode declarationNode) => declarationNode switch
+    {
+        MethodDeclarationSyntax { ExplicitInterfaceSpecifier: not null } method => method.ExplicitInterfaceSpecifier.Name.ToString(),
+        PropertyDeclarationSyntax { ExplicitInterfaceSpecifier: not null } property => property.ExplicitInterfaceSpecifier.Name.ToString(),
+        EventDeclarationSyntax { ExplicitInterfaceSpecifier: not null } @event => @event.ExplicitInterfaceSpecifier.Name.ToString(),
+        _ => null
+    };
+
+    private static string? GetSignature(string kind, SyntaxNode declarationNode) => kind switch
+    {
+        "method" => declarationNode is MethodDeclarationSyntax method
+            ? $"{method.TypeParameterList}{method.ParameterList}"
+            : null,
+        "ctor" => declarationNode switch
+        {
+            ConstructorDeclarationSyntax constructor => constructor.ParameterList.ToString(),
+            TypeDeclarationSyntax { ParameterList: not null } type => type.ParameterList!.ToString(),
+            _ => null
+        },
+        _ => null
+    };
 
 	// Naming helpers live in RoslynMcp.Tools.Extensions.SyntaxNamingExtensions.
 }

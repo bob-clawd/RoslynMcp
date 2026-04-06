@@ -56,11 +56,11 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 ## Recommended Tool Workflow
 
 1. `load_solution`
-2. `load_project`
-3. `load_type`
-4. `load_member`
+2. `load_project` or `search_type` / `search_member`
+3. `load_type` or `load_member`
+4. `check_document`
 5. `run_tests`
 
-This keeps navigation semantic and symbol-aware without relying on text-only search.
+This keeps navigation semantic and symbol-aware without relying on text-only search, while still giving you fast search and file-level validation when you need it.
 
 The full tool descriptions can be [found here](https://github.com/chrismo80/RoslynMcp/blob/main/TOOLS.md)
