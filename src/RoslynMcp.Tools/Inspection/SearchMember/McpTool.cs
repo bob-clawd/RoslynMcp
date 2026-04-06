@@ -46,60 +46,75 @@ public sealed class McpTool(
 
         query = query.Trim();
 
-        var candidates = await FindMatchesAsync(solution, query, cancellationToken).ConfigureAwait(false);
+        var candidates = await FindCandidatesAsync(solution, query, cancellationToken).ConfigureAwait(false);
 
         if (candidates.Count == 0)
-            return Result.AsError("no member found", new Dictionary<string, string> { ["query"] = query });
+            return NoMemberFound(query);
 
-        // Prefer handwritten matches when available.
-        if (candidates.Any(m => m.IsHandwritten))
-            candidates.RemoveAll(m => !m.IsHandwritten);
+        candidates = SelectCandidates(candidates, query);
 
-        // Collapse repeated declarations of the same member identity while keeping real overloads distinct.
-        candidates = candidates
+        return candidates.Count == 1
+            ? await LoadUniqueMember(solution, candidates[0], cancellationToken).ConfigureAwait(false)
+            : BuildAmbiguousResult(candidates);
+    }
+
+    private static Result NoMemberFound(string query)
+        => Result.AsError("no member found", new Dictionary<string, string> { ["query"] = query });
+
+    private static List<FoundMatch> SelectCandidates(List<FoundMatch> candidates, string query)
+        => PreferExactNameMatches(CollapseRepeatedDeclarations(PreferHandwritten(candidates)), query);
+
+    private static List<FoundMatch> PreferHandwritten(List<FoundMatch> candidates)
+    {
+        if (!candidates.Any(m => m.IsHandwritten))
+            return candidates;
+
+        return candidates.Where(m => m.IsHandwritten).ToList();
+    }
+
+    private static List<FoundMatch> CollapseRepeatedDeclarations(List<FoundMatch> candidates)
+        => candidates
             .DistinctBy(m => (m.FullName, m.ProjectPath, m.Kind, m.Signature))
             .ToList();
 
-        // Prefer exact name matches: if the user searched for "Duration", and there are candidates named exactly
-        // "Duration" among broader matches, pick those.
-        if (candidates.Any(m => string.Equals(m.Name, query, StringComparison.OrdinalIgnoreCase)))
-            candidates.RemoveAll(m => !string.Equals(m.Name, query, StringComparison.OrdinalIgnoreCase));
+    private static List<FoundMatch> PreferExactNameMatches(List<FoundMatch> candidates, string query)
+    {
+        var exactNameMatches = candidates
+            .Where(m => string.Equals(m.Name, query, StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
-        // NOTE: We intentionally do NOT attempt to collapse candidates further here.
-        // Even if multiple declarations resolve to a single symbol (e.g. partial methods),
-        // doing semantic resolution for every candidate is expensive and risks accidentally
-        // collapsing overloads or returning an arbitrary representative.
+        return exactNameMatches.Count == 0 ? candidates : exactNameMatches;
+    }
 
-        // If ambiguous: keep output small.
-        if (candidates.Count != 1)
-        {
-            const int maxMatches = 50;
+    private Result BuildAmbiguousResult(List<FoundMatch> candidates)
+    {
+        const int maxMatches = 50;
 
-            var ordered = candidates
-                .OrderBy(m => m.FullName, StringComparer.Ordinal)
-                .ThenBy(m => m.ProjectPath, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+        var ordered = candidates
+            .OrderBy(m => m.FullName, StringComparer.Ordinal)
+            .ThenBy(m => m.ProjectPath, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-            var truncated = ordered.Count > maxMatches;
-            if (truncated)
-                ordered = ordered.Take(maxMatches).ToList();
+        var truncated = ordered.Count > maxMatches;
+        if (truncated)
+            ordered = ordered.Take(maxMatches).ToList();
 
-            var matches = ordered
-                .Select(m => new Match(
-                    m.FullName,
-                    workspaceManager.ToRelativePathIfPossible(m.ProjectPath) ?? m.ProjectPath,
-                    workspaceManager.ToRelativePathIfPossible(m.Location) ?? m.Location,
-                    m.Kind,
-                    m.Signature))
-                .ToList();
+        var matches = ordered
+            .Select(m => new Match(
+                m.FullName,
+                workspaceManager.ToRelativePathIfPossible(m.ProjectPath) ?? m.ProjectPath,
+                workspaceManager.ToRelativePathIfPossible(m.Location) ?? m.Location,
+                m.Kind,
+                m.Signature))
+            .ToList();
 
-            return truncated
-                ? new Result(matches, Truncated: true)
-                : new Result(matches);
-        }
+        return truncated
+            ? new Result(matches, Truncated: true)
+            : new Result(matches);
+    }
 
-        // If exactly one match: resolve to a stable symbol id and immediately return load_member.
-        var match = candidates[0];
+    private async Task<Result> LoadUniqueMember(Solution solution, FoundMatch match, CancellationToken cancellationToken)
+    {
         var document = solution.GetDocument(match.DocumentId);
 
         if (document is null)
@@ -138,23 +153,16 @@ public sealed class McpTool(
 
     private static ISymbol? TryResolveSymbol(SyntaxNode node, SemanticModel semanticModel, CancellationToken ct)
     {
-        // Keep this in sync with what we index.
-        // Note: for constructors, we use ConstructorDeclarationSyntax.
-
         if (node.FirstAncestorOrSelf<MethodDeclarationSyntax>() is { } methodDecl)
             return semanticModel.GetDeclaredSymbol(methodDecl, ct);
 
         if (node.FirstAncestorOrSelf<ConstructorDeclarationSyntax>() is { } ctorDecl)
             return semanticModel.GetDeclaredSymbol(ctorDecl, ct);
 
-        // Primary constructors (C# 12) are declared on the type header.
-        // For unique matches we need to resolve the constructor symbol from the containing type.
         if (node.FirstAncestorOrSelf<TypeDeclarationSyntax>() is { ParameterList: not null } typeDecl)
         {
             if (semanticModel.GetDeclaredSymbol(typeDecl, ct) is INamedTypeSymbol typeSymbol)
             {
-                // Prefer the instance ctor that is declared in source (ignore static ctor).
-                // For primary ctors, this should map back to the type declaration.
                 var ctor = typeSymbol.InstanceConstructors
                     .Where(c => c.DeclaringSyntaxReferences.Length > 0)
                     .FirstOrDefault();
@@ -181,7 +189,7 @@ public sealed class McpTool(
         return null;
     }
 
-    private static async Task<List<FoundMatch>> FindMatchesAsync(Solution solution, string query, CancellationToken ct)
+    private static async Task<List<FoundMatch>> FindCandidatesAsync(Solution solution, string query, CancellationToken ct)
     {
         var matches = new List<FoundMatch>();
 
@@ -204,42 +212,48 @@ public sealed class McpTool(
                 if (root is null)
                     continue;
 
-                foreach (var methodDecl in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
-                    AddMatch(matches, query, projectPath, document, methodDecl.Identifier.ValueText, methodDecl.Identifier.Span, kind: "method", methodDecl);
-
-                foreach (var ctorDecl in root.DescendantNodes().OfType<ConstructorDeclarationSyntax>())
-                    AddMatch(matches, query, projectPath, document, ctorDecl.Identifier.ValueText, ctorDecl.Identifier.Span, kind: "ctor", ctorDecl);
-
-                // Primary constructors (C# 12): e.g. `class Foo(Dep dep) { }`
-                // Roslyn represents them on the type declaration header.
-                foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
-                {
-                    if (typeDecl.ParameterList is null)
-                        continue;
-
-                    // For primary ctors, the only meaningful identifier the user can search for is the type name.
-                    // We don't want broad queries to accidentally match type names.
-                    if (!string.Equals(typeDecl.Identifier.ValueText, query, StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    AddMatch(matches, query, projectPath, document, typeDecl.Identifier.ValueText, typeDecl.Identifier.Span, kind: "ctor", typeDecl);
-                }
-
-                foreach (var propDecl in root.DescendantNodes().OfType<PropertyDeclarationSyntax>())
-                    AddMatch(matches, query, projectPath, document, propDecl.Identifier.ValueText, propDecl.Identifier.Span, kind: "property", propDecl);
-
-                foreach (var evtDecl in root.DescendantNodes().OfType<EventDeclarationSyntax>())
-                    AddMatch(matches, query, projectPath, document, evtDecl.Identifier.ValueText, evtDecl.Identifier.Span, kind: "event", evtDecl);
-
-                foreach (var evtField in root.DescendantNodes().OfType<EventFieldDeclarationSyntax>())
-                {
-                    foreach (var variable in evtField.Declaration.Variables)
-                        AddMatch(matches, query, projectPath, document, variable.Identifier.ValueText, variable.Identifier.Span, kind: "event", evtField);
-                }
+                AddMatches(matches, query, projectPath, document, root);
             }
         }
 
         return matches;
+    }
+
+    private static void AddMatches(List<FoundMatch> matches, string query, string projectPath, Document document, SyntaxNode root)
+    {
+        foreach (var methodDecl in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
+            AddMatch(matches, query, projectPath, document, methodDecl.Identifier.ValueText, methodDecl.Identifier.Span, kind: "method", methodDecl);
+
+        foreach (var ctorDecl in root.DescendantNodes().OfType<ConstructorDeclarationSyntax>())
+            AddMatch(matches, query, projectPath, document, ctorDecl.Identifier.ValueText, ctorDecl.Identifier.Span, kind: "ctor", ctorDecl);
+
+        AddPrimaryConstructorMatches(matches, query, projectPath, document, root);
+
+        foreach (var propDecl in root.DescendantNodes().OfType<PropertyDeclarationSyntax>())
+            AddMatch(matches, query, projectPath, document, propDecl.Identifier.ValueText, propDecl.Identifier.Span, kind: "property", propDecl);
+
+        foreach (var evtDecl in root.DescendantNodes().OfType<EventDeclarationSyntax>())
+            AddMatch(matches, query, projectPath, document, evtDecl.Identifier.ValueText, evtDecl.Identifier.Span, kind: "event", evtDecl);
+
+        foreach (var evtField in root.DescendantNodes().OfType<EventFieldDeclarationSyntax>())
+        {
+            foreach (var variable in evtField.Declaration.Variables)
+                AddMatch(matches, query, projectPath, document, variable.Identifier.ValueText, variable.Identifier.Span, kind: "event", evtField);
+        }
+    }
+
+    private static void AddPrimaryConstructorMatches(List<FoundMatch> matches, string query, string projectPath, Document document, SyntaxNode root)
+    {
+        foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+        {
+            if (typeDecl.ParameterList is null)
+                continue;
+
+            if (!string.Equals(typeDecl.Identifier.ValueText, query, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            AddMatch(matches, query, projectPath, document, typeDecl.Identifier.ValueText, typeDecl.Identifier.Span, kind: "ctor", typeDecl);
+        }
     }
 
     private static void AddMatch(
@@ -258,27 +272,26 @@ public sealed class McpTool(
         if (name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
             return;
 
-		var ns = declarationNode.GetNamespaceName();
-        var container = declarationNode.GetContainingTypeChain();
-        var explicitInterfacePrefix = GetExplicitInterfacePrefix(declarationNode);
-        var memberName = string.IsNullOrWhiteSpace(explicitInterfacePrefix) ? name : $"{explicitInterfacePrefix}.{name}";
-        var memberIdentity = string.IsNullOrWhiteSpace(container) ? memberName : $"{container}.{memberName}";
-        var fullName = string.IsNullOrWhiteSpace(ns) ? memberIdentity : $"{ns}.{memberIdentity}";
-
-        var location = document.FilePath;
-
-        var signature = GetSignature(kind, declarationNode);
-
         matches.Add(new FoundMatch(
-            fullName,
+            BuildFullName(declarationNode, name),
             name,
             projectPath,
             document.Id,
             span,
-            location,
+            document.FilePath,
             kind,
-            signature,
+            GetSignature(kind, declarationNode),
             document.FilePath.IsHandwritten()));
+    }
+
+    private static string BuildFullName(SyntaxNode declarationNode, string name)
+    {
+        var ns = declarationNode.GetNamespaceName();
+        var container = declarationNode.GetContainingTypeChain();
+        var explicitInterfacePrefix = GetExplicitInterfacePrefix(declarationNode);
+        var memberName = string.IsNullOrWhiteSpace(explicitInterfacePrefix) ? name : $"{explicitInterfacePrefix}.{name}";
+        var memberIdentity = string.IsNullOrWhiteSpace(container) ? memberName : $"{container}.{memberName}";
+        return string.IsNullOrWhiteSpace(ns) ? memberIdentity : $"{ns}.{memberIdentity}";
     }
 
     private static string? GetExplicitInterfacePrefix(SyntaxNode declarationNode) => declarationNode switch
@@ -303,5 +316,4 @@ public sealed class McpTool(
         _ => null
     };
 
-	// Naming helpers live in RoslynMcp.Tools.Extensions.SyntaxNamingExtensions.
 }

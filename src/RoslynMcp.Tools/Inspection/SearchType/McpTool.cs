@@ -45,48 +45,63 @@ public sealed class McpTool(
 
         query = query.Trim();
 
-        var candidates = await FindMatchesAsync(solution, query, cancellationToken).ConfigureAwait(false);
+        var candidates = await FindCandidatesAsync(solution, query, cancellationToken).ConfigureAwait(false);
 
         if (candidates.Count == 0)
-            return Result.AsError("no type found", new Dictionary<string, string> { ["query"] = query });
+            return NoTypeFound(query);
 
-        // Prefer handwritten matches when available.
-        if (candidates.Any(m => m.IsHandwritten))
-            candidates.RemoveAll(m => !m.IsHandwritten);
+        candidates = SelectCandidates(candidates);
 
-        // Deduplicate before the ambiguity check (partial types can have multiple declarations).
-        // We keep the first candidate only; for the ambiguous response we still return deduped names.
-        candidates = candidates
+        return candidates.Count == 1
+            ? await LoadUniqueType(solution, candidates[0], cancellationToken).ConfigureAwait(false)
+            : BuildAmbiguousResult(candidates);
+    }
+
+    private static Result NoTypeFound(string query)
+        => Result.AsError("no type found", new Dictionary<string, string> { ["query"] = query });
+
+    private static List<FoundMatch> SelectCandidates(List<FoundMatch> candidates)
+        => CollapseRepeatedDeclarations(PreferHandwritten(candidates));
+
+    private static List<FoundMatch> PreferHandwritten(List<FoundMatch> candidates)
+    {
+        if (!candidates.Any(m => m.IsHandwritten))
+            return candidates;
+
+        return candidates.Where(m => m.IsHandwritten).ToList();
+    }
+
+    private static List<FoundMatch> CollapseRepeatedDeclarations(List<FoundMatch> candidates)
+        => candidates
             .DistinctBy(m => (m.FullName, m.ProjectPath))
             .ToList();
 
-        // If ambiguous: keep output small.
-        if (candidates.Count != 1)
-        {
-            const int maxMatches = 50;
+    private Result BuildAmbiguousResult(List<FoundMatch> candidates)
+    {
+        const int maxMatches = 50;
 
-            var ordered = candidates
-                .OrderBy(m => m.FullName, StringComparer.Ordinal)
-                .ThenBy(m => m.ProjectPath, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+        var ordered = candidates
+            .OrderBy(m => m.FullName, StringComparer.Ordinal)
+            .ThenBy(m => m.ProjectPath, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-            var truncated = ordered.Count > maxMatches;
-            if (truncated)
-                ordered = ordered.Take(maxMatches).ToList();
+        var truncated = ordered.Count > maxMatches;
+        if (truncated)
+            ordered = ordered.Take(maxMatches).ToList();
 
-            var matches = ordered
-                .Select(m => new Match(
-                    m.FullName,
-                    workspaceManager.ToRelativePathIfPossible(m.ProjectPath) ?? m.ProjectPath))
-                .ToList();
+        var matches = ordered
+            .Select(m => new Match(
+                m.FullName,
+                workspaceManager.ToRelativePathIfPossible(m.ProjectPath) ?? m.ProjectPath))
+            .ToList();
 
-            return truncated
-                ? new Result(matches, Truncated: true)
-                : new Result(matches);
-        }
+        return truncated
+            ? new Result(matches, Truncated: true)
+            : new Result(matches);
+    }
 
-        // If exactly one match: resolve to a stable symbol id and immediately return load_type.
-        var match = candidates[0];
+    private async Task<Result> LoadUniqueType(Solution solution, FoundMatch match, CancellationToken cancellationToken)
+    {
         var document = solution.GetDocument(match.DocumentId);
 
         if (document is null)
@@ -121,12 +136,6 @@ public sealed class McpTool(
 
     private static INamedTypeSymbol? TryResolveNamedTypeSymbol(SyntaxNode node, SemanticModel semanticModel, CancellationToken ct)
     {
-        // Unique match resolution must respect what we indexed:
-        // - TypeDeclarationSyntax (class/record/interface/struct)
-        // - EnumDeclarationSyntax
-        // - DelegateDeclarationSyntax
-        // Important: enum/delegate can be nested inside types. We must prefer the specific declaration.
-
         var enumDecl = node.FirstAncestorOrSelf<EnumDeclarationSyntax>();
         if (enumDecl is not null)
             return semanticModel.GetDeclaredSymbol(enumDecl, ct) as INamedTypeSymbol;
@@ -142,7 +151,7 @@ public sealed class McpTool(
         return null;
     }
 
-    private static async Task<List<FoundMatch>> FindMatchesAsync(Solution solution, string query, CancellationToken ct)
+    private static async Task<List<FoundMatch>> FindCandidatesAsync(Solution solution, string query, CancellationToken ct)
     {
         var matches = new List<FoundMatch>();
 
@@ -166,13 +175,13 @@ public sealed class McpTool(
                     continue;
 
                 foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
-                    AddMatch(matches, query, projectPath, document, typeDecl.Identifier.ValueText, typeDecl.Identifier.Span, GetNamespace(typeDecl), GetContainingTypes(typeDecl), typeDecl.TypeParameterList?.Parameters.Count ?? 0);
+                    AddMatch(matches, query, projectPath, document, typeDecl.Identifier.ValueText, typeDecl.Identifier.Span, typeDecl.GetNamespaceName(), typeDecl.GetContainingTypeLikeChain(), typeDecl.TypeParameterList?.Parameters.Count ?? 0);
 
                 foreach (var enumDecl in root.DescendantNodes().OfType<EnumDeclarationSyntax>())
-                    AddMatch(matches, query, projectPath, document, enumDecl.Identifier.ValueText, enumDecl.Identifier.Span, GetNamespace(enumDecl), GetContainingTypes(enumDecl), genericArity: 0);
+                    AddMatch(matches, query, projectPath, document, enumDecl.Identifier.ValueText, enumDecl.Identifier.Span, enumDecl.GetNamespaceName(), enumDecl.GetContainingTypeLikeChain(), genericArity: 0);
 
                 foreach (var delDecl in root.DescendantNodes().OfType<DelegateDeclarationSyntax>())
-                    AddMatch(matches, query, projectPath, document, delDecl.Identifier.ValueText, delDecl.Identifier.Span, GetNamespace(delDecl), GetContainingTypes(delDecl), delDecl.TypeParameterList?.Parameters.Count ?? 0);
+                    AddMatch(matches, query, projectPath, document, delDecl.Identifier.ValueText, delDecl.Identifier.Span, delDecl.GetNamespaceName(), delDecl.GetContainingTypeLikeChain(), delDecl.TypeParameterList?.Parameters.Count ?? 0);
             }
         }
 
@@ -206,8 +215,4 @@ public sealed class McpTool(
             span,
             document.FilePath.IsHandwritten()));
     }
-
-	private static string GetNamespace(SyntaxNode node) => node.GetNamespaceName();
-
-	private static string GetContainingTypes(SyntaxNode node) => node.GetContainingTypeLikeChain();
 }

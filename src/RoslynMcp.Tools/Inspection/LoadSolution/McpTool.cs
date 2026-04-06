@@ -79,15 +79,7 @@ public sealed class McpTool(
     private EdgeInfo GetEdgeInfo(Solution solution)
     {
         var edges = GetEdges(solution);
-
-        var nodes = solution.Projects
-            .Select(p => workspaceManager.ToRelativePathIfPossible(p.FilePath ?? string.Empty))
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Select(p => p!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var topo = TopoSort(nodes, edges.Select(e => (e.From, e.To)).ToList());
+        var topo = TopoSort(GetProjectPaths(solution), edges.Select(e => (e.From, e.To)).ToList());
 
         return new EdgeInfo(
             Count: edges.Count,
@@ -98,38 +90,23 @@ public sealed class McpTool(
     private ProjectOutputBuckets GetProjectBuckets(Solution solution)
     {
         var edges = GetEdges(solution);
-
-        var nodes = solution.Projects
-            .Select(p => workspaceManager.ToRelativePathIfPossible(p.FilePath ?? string.Empty))
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Select(p => p!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        // If there are no cycles, topo order provides a dependency-respecting stable order.
-        // Even with cycles, we append remaining nodes deterministically.
-        var topo = TopoSort(nodes, edges.Select(e => (e.From, e.To)).ToList());
+        var topo = TopoSort(GetProjectPaths(solution), edges.Select(e => (e.From, e.To)).ToList());
 
         var outgoingByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         var incomingByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
-        // Policy: Ignore projects with no FilePath.
-        // Some solution/project systems can surface pathless projects (generated/shared).
-        // We exclude them entirely to keep counts consistent with the explicit edge list.
-
-        var projectsWithPath = solution.Projects
+        var fileBackedProjects = solution.Projects
             .Where(p => !string.IsNullOrWhiteSpace(p.FilePath))
             .Select(p => (Project: p, Path: p.FilePath!))
             .ToList();
 
-        foreach (var (_, path) in projectsWithPath)
+        foreach (var (_, path) in fileBackedProjects)
         {
             outgoingByPath.TryAdd(path, []);
             incomingByPath.TryAdd(path, []);
         }
 
-        foreach (var (project, sourcePath) in projectsWithPath)
+        foreach (var (project, sourcePath) in fileBackedProjects)
         {
             foreach (var reference in project.ProjectReferences)
             {
@@ -138,7 +115,6 @@ public sealed class McpTool(
                 if (string.IsNullOrWhiteSpace(dependencyPath))
                     continue;
 
-                // Only keep edges between projects that have a stable file path.
                 if (!outgoingByPath.ContainsKey(sourcePath) || !incomingByPath.ContainsKey(dependencyPath))
                     continue;
 
@@ -166,107 +142,59 @@ public sealed class McpTool(
                 ReferencedBy: incomingByPath[projectPath].Count));
         }
 
-        // Top-level split by output role.
-        // - Libraries: OutputType == "Library"
-        // - Executables: OutputType == "Exe" or "WinExe"
-        // - Unknown: anything else (including null/NetModule)
-
-        var orderIndex = topo.OrderIndex;
-
-        IReadOnlyList<ProjectSummary> SortList(IEnumerable<ProjectSummary> list)
-            => list
-                .OrderBy(p => p.ProjectPath is not null && orderIndex.TryGetValue(p.ProjectPath, out var idx) ? idx : int.MaxValue)
-                .ThenBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(p => p.Name, StringComparer.Ordinal)
-                .ToList();
-
-        // Classify by output role using Roslyn/MSBuild-like OutputKind mapping.
-        static string GetOutputRole(Project project)
-        {
-            var outputType = project.CompilationOptions?.OutputKind switch
-            {
-                OutputKind.DynamicallyLinkedLibrary => "Library",
-                OutputKind.ConsoleApplication => "Exe",
-                OutputKind.WindowsApplication => "WinExe",
-                _ => null
-            };
-
-            return outputType switch
-            {
-                "Library" => "libraries",
-                "Exe" or "WinExe" => "executables",
-                _ => "unknown"
-            };
-        }
-
-        var pathToRole = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var project in solution.Projects)
-        {
-            if (string.IsNullOrWhiteSpace(project.FilePath))
-                continue;
-
-            var path = workspaceManager.ToRelativePathIfPossible(project.FilePath);
-            if (string.IsNullOrWhiteSpace(path))
-                continue;
-
-            // Best-effort: if duplicates exist, keep the first one.
-            pathToRole.TryAdd(path, GetOutputRole(project));
-        }
-
-        var librariesAll = new List<ProjectSummary>();
-        var executablesAll = new List<ProjectSummary>();
-        var unknownAll = new List<ProjectSummary>();
+        var rolesByProjectPath = GetRolesByProjectPath(solution);
+        var libraryProjects = new List<ProjectSummary>();
+        var executableProjects = new List<ProjectSummary>();
+        var unknownProjects = new List<ProjectSummary>();
 
         foreach (var summary in summaries)
         {
             if (summary.ProjectPath is null)
                 continue;
 
-            var role = pathToRole.GetValueOrDefault(summary.ProjectPath) ?? "unknown";
+            var role = rolesByProjectPath.GetValueOrDefault(summary.ProjectPath) ?? "unknown";
             switch (role)
             {
                 case "libraries":
-                    librariesAll.Add(summary);
+                    libraryProjects.Add(summary);
                     break;
                 case "executables":
-                    executablesAll.Add(summary);
+                    executableProjects.Add(summary);
                     break;
                 default:
-                    unknownAll.Add(summary);
+                    unknownProjects.Add(summary);
                     break;
             }
         }
 
-        ProjectBuckets? BucketsOrNull(IReadOnlyList<ProjectSummary> subset)
+        ProjectBuckets? BuildBuckets(IReadOnlyList<ProjectSummary> projects)
         {
-            if (subset.Count == 0)
+            if (projects.Count == 0)
                 return null;
 
-            var l = SortList(subset.Where(p => p.References == 0 && p.ReferencedBy != 0));
-            var r = SortList(subset.Where(p => p.ReferencedBy == 0));
-            var i = SortList(subset.Where(p => !(p.References == 0 && p.ReferencedBy != 0) && p.ReferencedBy != 0));
+            var leaves = SortProjects(projects.Where(p => p.References == 0 && p.ReferencedBy != 0), topo.OrderIndex);
+            var roots = SortProjects(projects.Where(p => p.ReferencedBy == 0), topo.OrderIndex);
+            var intermediates = SortProjects(projects.Where(p => !(p.References == 0 && p.ReferencedBy != 0) && p.ReferencedBy != 0), topo.OrderIndex);
 
             IReadOnlyList<ProjectSummary>? NullIfEmpty(IReadOnlyList<ProjectSummary> list)
                 => list.Count == 0 ? null : list;
 
             return new ProjectBuckets(
-                Leaves: NullIfEmpty(l),
-                Intermediates: NullIfEmpty(i),
-                Roots: NullIfEmpty(r));
+                Leaves: NullIfEmpty(leaves),
+                Intermediates: NullIfEmpty(intermediates),
+                Roots: NullIfEmpty(roots));
         }
 
-        var libBuckets = BucketsOrNull(librariesAll);
-        var exeBuckets = BucketsOrNull(executablesAll);
-        var unkBuckets = BucketsOrNull(unknownAll);
+        var libraries = BuildBuckets(libraryProjects);
+        var executables = BuildBuckets(executableProjects);
+        var unknown = BuildBuckets(unknownProjects);
 
         return new ProjectOutputBuckets(
             Count: summaries.Count,
-            Libraries: libBuckets,
-            Executables: exeBuckets,
-            Unknown: unkBuckets);
+            Libraries: libraries,
+            Executables: executables,
+            Unknown: unknown);
     }
-
-    // Note: previous nested group format removed in favor of explicit leaf/intermediate/root buckets.
 
     private IReadOnlyList<Edge> GetEdges(Solution solution)
     {
@@ -302,13 +230,61 @@ public sealed class McpTool(
             .ToList();
     }
 
-    // Summary fields are now embedded in the Projects node (Count/EdgeCount/CycleDetected).
+    private IReadOnlyList<string> GetProjectPaths(Solution solution)
+        => solution.Projects
+            .Select(p => workspaceManager.ToRelativePathIfPossible(p.FilePath ?? string.Empty))
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    private Dictionary<string, string> GetRolesByProjectPath(Solution solution)
+    {
+        var rolesByProjectPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var project in solution.Projects)
+        {
+            if (string.IsNullOrWhiteSpace(project.FilePath))
+                continue;
+
+            var path = workspaceManager.ToRelativePathIfPossible(project.FilePath);
+            if (string.IsNullOrWhiteSpace(path))
+                continue;
+
+            rolesByProjectPath.TryAdd(path, GetOutputRole(project));
+        }
+
+        return rolesByProjectPath;
+    }
+
+    private static IReadOnlyList<ProjectSummary> SortProjects(IEnumerable<ProjectSummary> projects, IReadOnlyDictionary<string, int> orderIndex)
+        => projects
+            .OrderBy(p => p.ProjectPath is not null && orderIndex.TryGetValue(p.ProjectPath, out var idx) ? idx : int.MaxValue)
+            .ThenBy(p => p.ProjectPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.Name, StringComparer.Ordinal)
+            .ToList();
+
+    private static string GetOutputRole(Project project)
+    {
+        var outputType = project.CompilationOptions?.OutputKind switch
+        {
+            OutputKind.DynamicallyLinkedLibrary => "Library",
+            OutputKind.ConsoleApplication => "Exe",
+            OutputKind.WindowsApplication => "WinExe",
+            _ => null
+        };
+
+        return outputType switch
+        {
+            "Library" => "libraries",
+            "Exe" or "WinExe" => "executables",
+            _ => "unknown"
+        };
+    }
 
     private static TopoSortResult TopoSort(IReadOnlyList<string> nodes, IReadOnlyList<(string from, string to)> edges)
     {
-        // Graph model: from -> to (project -> referenced-project).
-        // For a dependency-first order, we sort the reversed edges: dependency -> dependent.
-
         var dependents = nodes.ToDictionary(n => n, _ => new List<string>(), StringComparer.OrdinalIgnoreCase);
         var inDegree = nodes.ToDictionary(n => n, _ => 0, StringComparer.OrdinalIgnoreCase);
 
@@ -317,7 +293,6 @@ public sealed class McpTool(
             if (!dependents.ContainsKey(from) || !dependents.ContainsKey(to))
                 continue;
 
-            // reverse: to -> from
             dependents[to].Add(from);
             inDegree[from]++;
         }
