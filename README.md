@@ -59,30 +59,18 @@ Choose the entry point based on what you already know.
 
 ```mermaid
 flowchart TD
-    Start([Start]) --> LoadSolution[load_solution]
+    ls[load_solution] --> lp[load_project]
+    lp --> lt[load_type]
+    lt --> lm[load_member]
 
-    LoadSolution --> WhatKnown{What do you know?}
+    ls --> st[search_type]
+    ls --> sm[search_member]
 
-    WhatKnown -->|A project path| LoadProject[load_project]
-    LoadProject --> LoadType[load_type]
-    LoadType --> LoadMember[load_member]
+    st --> lt
+    sm --> lm
 
-    WhatKnown -->|A type name| SearchType[search_type]
-    SearchType --> TypeUnique{Unique match?}
-    TypeUnique -->|Yes| LoadType
-    TypeUnique -->|No| PickType[Pick a typeSymbolId and run load_type]
-
-    WhatKnown -->|A member name| SearchMember[search_member]
-    SearchMember --> MemberUnique{Unique match?}
-    MemberUnique -->|Yes| LoadMember
-    MemberUnique -->|No| PickMember[Pick a memberSymbolId and run load_member]
-
-    LoadSolution --> EditedFile{Edited a file?}
-    EditedFile -->|Yes| CheckDocument[check_document]
-
-    LoadMember --> RunTests[run_tests]
-    LoadType --> RunTests
-    CheckDocument --> RunTests
+    lm --> cd[check_document]
+    cd --> rt[run_tests]
 ```
 
 ### Typical paths
