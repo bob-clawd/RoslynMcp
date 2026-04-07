@@ -1,11 +1,11 @@
 using Is.Assertions;
-using RoslynMcp.Tools.Inspection.CheckDocument;
+using RoslynMcp.Tools.Inspection.DiagnoseFile;
 using Xunit.Abstractions;
 
 namespace RoslynMcp.Tools.Test.Inspections;
 
 [TraceWatch]
-public class CheckDocument(ITestOutputHelper o) : Tests<McpTool>
+public class DiagnoseFile(ITestOutputHelper o) : Tests<McpTool>
 {
 	[Fact]
 	public async Task HappyPath_NoErrors_ReturnsEmptyList()

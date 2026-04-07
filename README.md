@@ -70,11 +70,11 @@ flowchart TD
     st --> lt
     sm --> lm
 
-    lm --> cd[check_document]
-    cd --> rt[run_tests]
+    lm --> df[diagnose_file]
+    df --> rt[run_tests]
 
     classDef tool fill:#1f2937,stroke:#9ca3af,color:#f9fafb;
-    class ls,lp,lt,lm,st,sm,cd,rt tool;
+    class ls,lp,lt,lm,st,sm,df,rt tool;
     linkStyle default stroke:#9ca3af,stroke-width:1.5px;
 ```
 

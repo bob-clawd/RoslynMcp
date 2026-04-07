@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 using ModelContextProtocol.Server;
 using RoslynMcp.Tools.Managers;
 
-namespace RoslynMcp.Tools.Inspection.CheckDocument;
+namespace RoslynMcp.Tools.Inspection.DiagnoseFile;
 
 public sealed record Diagnostic(int Line, int Column, string Id, string Message);
 
@@ -21,32 +21,26 @@ public sealed class McpTool(
 {
 	private const int MaxErrors = 10;
 
-	[McpServerTool(Name = "check_document", Title = "Check Document", ReadOnly = true, Idempotent = true)]
-	[Description("Quick file-level semantic check after edits. Returns up to 10 error diagnostics for the given document.")]
+	[McpServerTool(Name = "diagnose_file", Title = "Diagnose File", ReadOnly = true, Idempotent = true)]
+	[Description("Get up to 10 file-local compiler error diagnostics for the given file.")]
 	public async Task<Result> Execute(
 		CancellationToken cancellationToken,
 		[Description("Path to a source file within the currently loaded solution.")]
-		string? documentPath = null)
+		string? filePath = null)
 	{
 		if (solutionManager.Solution is not { } solution)
 			return Result.AsError("load solution first");
 
-		if (string.IsNullOrWhiteSpace(documentPath))
-			return Result.AsError("documentPath is required");
+		if (string.IsNullOrWhiteSpace(filePath))
+			return Result.AsError("filePath is required");
 
-		// Policy (per Moldi): only accept absolute paths or paths relative to the workspace.
-		// Path normalization / resolution is delegated to WorkspaceManager.
-		var absolutePath = workspaceManager.ToAbsolutePath(documentPath);
+		var absolutePath = workspaceManager.ToAbsolutePath(filePath);
 		if (string.IsNullOrWhiteSpace(absolutePath))
-			return Result.AsError("document not found", new Dictionary<string, string> { ["documentPath"] = documentPath });
+			return Result.AsError("file not found", new Dictionary<string, string> { ["filePath"] = filePath });
 
-		// We compare relative paths inside the workspace to avoid fragile absolute path normalization.
 		var relativePath = workspaceManager.ToRelativePathIfPossible(absolutePath);
-		var relativeInputPath = workspaceManager.ToRelativePathIfPossible(documentPath);
+		var relativeInputPath = workspaceManager.ToRelativePathIfPossible(filePath);
 
-		// Resolve the document by file path.
-		// We intentionally avoid File.Exists checks here because callers may provide relative paths
-		// and the workspace can be a sandbox copy in tests.
 		var documents = solution.Projects.SelectMany(p => p.Documents).Where(d => d.FilePath is not null).ToList();
 
 		var document = documents.FirstOrDefault(d =>
@@ -55,10 +49,8 @@ public sealed class McpTool(
 			string.Equals(workspaceManager.ToRelativePathIfPossible(d.FilePath), relativeInputPath, StringComparison.OrdinalIgnoreCase));
 
 		if (document is null)
-			return Result.AsError("document not in solution", new Dictionary<string, string> { ["documentPath"] = documentPath });
+			return Result.AsError("file not in solution", new Dictionary<string, string> { ["filePath"] = filePath });
 
-		// SemanticModel.GetDiagnostics() may not force full compilation binding for certain failures.
-		// We use the project's compilation diagnostics and then filter down to this document.
 		var compilation = await document.Project.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
 		if (compilation is null)
 			return Result.AsError("no compilation");
