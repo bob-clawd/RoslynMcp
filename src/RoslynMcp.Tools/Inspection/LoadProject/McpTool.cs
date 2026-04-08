@@ -20,11 +20,7 @@ public sealed record Entry(
     int Members);
 
 [McpServerToolType]
-public sealed class McpTool(
-    WorkspaceManager workspaceManager,
-    SolutionManager solutionManager,
-    SymbolManager symbolManager
-    ) : Tool
+public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager solutionManager, SymbolManager symbolManager) : Tool
 {
     [McpServerTool(Name = "load_project", Title = "Load Project", ReadOnly = true, Idempotent = true)]
     [Description("Use this tool when you need to list types declared in a specific project. It is useful for project-scoped discovery, for finding type symbols before follow-up calls such as load_type or load_member.")]

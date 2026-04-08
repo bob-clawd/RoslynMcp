@@ -23,11 +23,7 @@ public sealed record Result(
 }
 
 [McpServerToolType]
-public sealed class McpTool(
-    WorkspaceManager workspaceManager,
-    SolutionManager solutionManager,
-    SymbolManager symbolManager
-    ) : Tool
+public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager solutionManager, SymbolManager symbolManager) : Tool
 {
     [McpServerTool(Name = "load_member", Title = "Load Member", ReadOnly = true, Idempotent = true)]
     [Description("Use this tool when you need callers/callees or overrides/implementations of a symbol.")]

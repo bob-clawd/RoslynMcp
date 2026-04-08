@@ -21,12 +21,7 @@ public sealed record Result(
 }
 
 [McpServerToolType]
-public sealed class McpTool(
-    WorkspaceManager workspaceManager,
-    SolutionManager solutionManager,
-    SymbolManager symbolManager,
-    Inspection.LoadMember.McpTool loadMemberTool)
-    : Tool
+public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager solutionManager, SymbolManager symbolManager, Inspection.LoadMember.McpTool loadMemberTool) : Tool
 {
     [McpServerTool(Name = "search_member", Title = "Search Member", ReadOnly = true, Idempotent = true)]
     [Description(

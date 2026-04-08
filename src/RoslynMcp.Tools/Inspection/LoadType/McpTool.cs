@@ -20,11 +20,7 @@ public sealed record Result(
 }
 
 [McpServerToolType]
-public sealed class McpTool(
-    WorkspaceManager workspaceManager,
-    SolutionManager solutionManager,
-    SymbolManager symbolManager
-    ) : Tool
+public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager solutionManager, SymbolManager symbolManager) : Tool
 {
     [McpServerTool(Name = "load_type", Title = "Load Type", ReadOnly = true, Idempotent = true)]
     [Description("Use this tool when you need to inspect type hierarchy and members declared by the specific type.")]
