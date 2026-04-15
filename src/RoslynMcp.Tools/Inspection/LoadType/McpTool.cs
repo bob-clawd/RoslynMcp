@@ -25,7 +25,7 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
     [McpServerTool(Name = "load_type", Title = "Load Type", ReadOnly = true, Idempotent = true)]
     [Description("Use this tool when you need to inspect type hierarchy and members declared by the specific type.")]
     public async Task<Result> Execute(CancellationToken cancellationToken,
-        [Description("The stable symbol ID of a type, obtained from load_project.")]
+        [Description("The stable symbol ID of a type, obtained from load_project or from a search_type match.")]
         string? typeSymbolId = null)
     {
         if (solutionManager.Solution is not { } solution)

@@ -8,7 +8,7 @@ using RoslynMcp.Tools.Managers;
 
 namespace RoslynMcp.Tools.Inspection.SearchMember;
 
-public sealed record Match(string FullName, string ProjectPath, string? Location, string? Kind, string? Signature = null);
+public sealed record Match(string FullName, string ProjectPath, string? Location, string? Kind, string? Signature = null, string? MemberSymbolId = null);
 
 public sealed record Result(
     IReadOnlyList<Match> Matches,
@@ -27,7 +27,8 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
     [Description(
         "Use this tool when you only have a member name fragment (method/property/event/ctor). " +
         "It performs a fast syntax-only search over the loaded solution. " +
-        "If exactly one match is found, it automatically returns the load_member result for that symbol.")]
+        "If exactly one match is found, it automatically returns the load_member result for that symbol. " +
+        "If multiple matches are found, the first 10 matches may include memberSymbolId values that can be passed to load_member directly.")]
     public async Task<Result> Execute(
         CancellationToken cancellationToken,
         [Description("Member name fragment to search for (case-insensitive contains match).")]
@@ -50,7 +51,7 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
 
         return candidates.Count == 1
             ? await LoadUniqueMember(solution, candidates[0], cancellationToken).ConfigureAwait(false)
-            : BuildAmbiguousResult(candidates);
+            : await BuildAmbiguousResult(solution, candidates, cancellationToken).ConfigureAwait(false);
     }
 
     private static Result NoMemberFound(string query)
@@ -81,9 +82,10 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
         return exactNameMatches.Count == 0 ? candidates : exactNameMatches;
     }
 
-    private Result BuildAmbiguousResult(List<FoundMatch> candidates)
+    private async Task<Result> BuildAmbiguousResult(Solution solution, List<FoundMatch> candidates, CancellationToken cancellationToken)
     {
         const int maxMatches = 50;
+        const int maxResolvedMatches = 10;
 
         var ordered = candidates
             .OrderBy(m => m.FullName, StringComparer.Ordinal)
@@ -94,38 +96,38 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
         if (truncated)
             ordered = ordered.Take(maxMatches).ToList();
 
-        var matches = ordered
-            .Select(m => new Match(
-                m.FullName,
-                workspaceManager.ToRelativePathIfPossible(m.ProjectPath) ?? m.ProjectPath,
-                workspaceManager.ToRelativePathIfPossible(m.Location) ?? m.Location,
-                m.Kind,
-                m.Signature))
-            .ToList();
+        var matches = new List<Match>(ordered.Count);
+
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            var candidate = ordered[index];
+            var memberSymbolId = index < maxResolvedMatches
+                ? await TryGetMemberSymbolId(solution, candidate, cancellationToken).ConfigureAwait(false)
+                : null;
+
+            matches.Add(new Match(
+                candidate.FullName,
+                workspaceManager.ToRelativePathIfPossible(candidate.ProjectPath) ?? candidate.ProjectPath,
+                workspaceManager.ToRelativePathIfPossible(candidate.Location) ?? candidate.Location,
+                candidate.Kind,
+                candidate.Signature,
+                memberSymbolId));
+        }
 
         return truncated
             ? new Result(matches, Truncated: true)
             : new Result(matches);
     }
 
+    private async Task<string?> TryGetMemberSymbolId(Solution solution, FoundMatch match, CancellationToken cancellationToken)
+    {
+        var symbol = await TryResolveMemberSymbol(solution, match, cancellationToken).ConfigureAwait(false);
+        return symbol is null ? null : symbolManager.ToId(symbol);
+    }
+
     private async Task<Result> LoadUniqueMember(Solution solution, FoundMatch match, CancellationToken cancellationToken)
     {
-        var document = solution.GetDocument(match.DocumentId);
-
-        if (document is null)
-            return Result.AsError("document not found");
-
-        var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
-        if (root is null)
-            return Result.AsError("no syntax root");
-
-        var node = root.FindNode(match.Span, getInnermostNodeForTie: true);
-
-        var semanticModel = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
-        if (semanticModel is null)
-            return Result.AsError("no semantic model");
-
-        var symbol = TryResolveSymbol(node, semanticModel, cancellationToken);
+        var symbol = await TryResolveMemberSymbol(solution, match, cancellationToken).ConfigureAwait(false);
         if (symbol is null)
             return Result.AsError("member symbol not found");
 
@@ -133,6 +135,25 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
 
         var memberResult = await loadMemberTool.Execute(cancellationToken, memberSymbolId: symbolId).ConfigureAwait(false);
         return new Result([], memberResult);
+    }
+
+    private static async Task<ISymbol?> TryResolveMemberSymbol(Solution solution, FoundMatch match, CancellationToken cancellationToken)
+    {
+        var document = solution.GetDocument(match.DocumentId);
+        if (document is null)
+            return null;
+
+        var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
+        if (root is null)
+            return null;
+
+        var node = root.FindNode(match.Span, getInnermostNodeForTie: true);
+
+        var semanticModel = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
+        if (semanticModel is null)
+            return null;
+
+        return TryResolveSymbol(node, semanticModel, cancellationToken);
     }
 
     private sealed record FoundMatch(

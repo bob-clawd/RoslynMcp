@@ -8,7 +8,7 @@ using RoslynMcp.Tools.Managers;
 
 namespace RoslynMcp.Tools.Inspection.SearchType;
 
-public sealed record Match(string FullName, string ProjectPath);
+public sealed record Match(string FullName, string ProjectPath, string? TypeSymbolId = null);
 
 public sealed record Result(
     IReadOnlyList<Match> Matches,
@@ -26,7 +26,8 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
     [McpServerTool(Name = "search_type", Title = "Search Type", ReadOnly = true, Idempotent = true)]
     [Description(
         "Use this tool when you only have a type name fragment. It performs a fast syntax-only search over the loaded solution. " +
-        "If exactly one match is found, it automatically returns the load_type result for that type.")]
+        "If exactly one match is found, it automatically returns the load_type result for that type. " +
+        "If multiple matches are found, the first 10 matches may include typeSymbolId values that can be passed to load_type directly.")]
     public async Task<Result> Execute(
         CancellationToken cancellationToken,
         [Description("Type name fragment to search for (case-insensitive contains match).")]
@@ -49,7 +50,7 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
 
         return candidates.Count == 1
             ? await LoadUniqueType(solution, candidates[0], cancellationToken).ConfigureAwait(false)
-            : BuildAmbiguousResult(candidates);
+            : await BuildAmbiguousResult(solution, candidates, cancellationToken).ConfigureAwait(false);
     }
 
     private static Result NoTypeFound(string query)
@@ -71,9 +72,10 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
             .DistinctBy(m => (m.FullName, m.ProjectPath))
             .ToList();
 
-    private Result BuildAmbiguousResult(List<FoundMatch> candidates)
+    private async Task<Result> BuildAmbiguousResult(Solution solution, List<FoundMatch> candidates, CancellationToken cancellationToken)
     {
         const int maxMatches = 50;
+        const int maxResolvedMatches = 10;
 
         var ordered = candidates
             .OrderBy(m => m.FullName, StringComparer.Ordinal)
@@ -84,35 +86,35 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
         if (truncated)
             ordered = ordered.Take(maxMatches).ToList();
 
-        var matches = ordered
-            .Select(m => new Match(
-                m.FullName,
-                workspaceManager.ToRelativePathIfPossible(m.ProjectPath) ?? m.ProjectPath))
-            .ToList();
+        var matches = new List<Match>(ordered.Count);
+
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            var candidate = ordered[index];
+            var typeSymbolId = index < maxResolvedMatches
+                ? await TryGetTypeSymbolId(solution, candidate, cancellationToken).ConfigureAwait(false)
+                : null;
+
+            matches.Add(new Match(
+                candidate.FullName,
+                workspaceManager.ToRelativePathIfPossible(candidate.ProjectPath) ?? candidate.ProjectPath,
+                typeSymbolId));
+        }
 
         return truncated
             ? new Result(matches, Truncated: true)
             : new Result(matches);
     }
 
+    private async Task<string?> TryGetTypeSymbolId(Solution solution, FoundMatch match, CancellationToken cancellationToken)
+    {
+        var symbol = await TryResolveTypeSymbol(solution, match, cancellationToken).ConfigureAwait(false);
+        return symbol is null ? null : symbolManager.ToId(symbol);
+    }
+
     private async Task<Result> LoadUniqueType(Solution solution, FoundMatch match, CancellationToken cancellationToken)
     {
-        var document = solution.GetDocument(match.DocumentId);
-
-        if (document is null)
-            return Result.AsError("document not found");
-
-        var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
-        if (root is null)
-            return Result.AsError("no syntax root");
-
-        var node = root.FindNode(match.Span, getInnermostNodeForTie: true);
-
-        var semanticModel = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
-        if (semanticModel is null)
-            return Result.AsError("no semantic model");
-
-        var symbol = TryResolveNamedTypeSymbol(node, semanticModel, cancellationToken);
+        var symbol = await TryResolveTypeSymbol(solution, match, cancellationToken).ConfigureAwait(false);
         if (symbol is null)
             return Result.AsError("type symbol not found");
 
@@ -120,6 +122,25 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
 
         var typeResult = await loadTypeTool.Execute(cancellationToken, typeSymbolId: symbolId).ConfigureAwait(false);
         return new Result([], typeResult);
+    }
+
+    private static async Task<INamedTypeSymbol?> TryResolveTypeSymbol(Solution solution, FoundMatch match, CancellationToken cancellationToken)
+    {
+        var document = solution.GetDocument(match.DocumentId);
+        if (document is null)
+            return null;
+
+        var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
+        if (root is null)
+            return null;
+
+        var node = root.FindNode(match.Span, getInnermostNodeForTie: true);
+
+        var semanticModel = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
+        if (semanticModel is null)
+            return null;
+
+        return TryResolveNamedTypeSymbol(node, semanticModel, cancellationToken);
     }
 
     private sealed record FoundMatch(

@@ -32,6 +32,26 @@ public class SearchMember(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 	}
 
 	[Fact]
+	public async Task AmbiguousMatches_ResolveMemberSymbolIdsOnlyForFirstTen()
+	{
+		var result = await Sut.Execute(CancellationToken.None, "ExecuteAsync");
+		o.WriteLine(result.ToJson());
+
+		result.Error.IsNull();
+		result.Member.IsNull();
+		result.Matches.Count.IsGreaterThan(10);
+		result.Matches.Count(m => m.MemberSymbolId is not null).Is(10);
+		result.Matches.Take(10).All(m => m.MemberSymbolId is not null).IsTrue();
+		result.Matches.Skip(10).All(m => m.MemberSymbolId is null).IsTrue();
+
+		var loadMember = ServiceProvider.GetRequiredService<global::RoslynMcp.Tools.Inspection.LoadMember.McpTool>();
+		var resolved = await loadMember.Execute(CancellationToken.None, result.Matches[0].MemberSymbolId);
+
+		resolved.Error.IsNull();
+		resolved.Symbol.IsNotNull();
+	}
+
+	[Fact]
 	public async Task PropertyMatch_IsReturnedInMatches()
 	{
 		// Use a property name that is not ambiguous with other identifiers in the test solution.

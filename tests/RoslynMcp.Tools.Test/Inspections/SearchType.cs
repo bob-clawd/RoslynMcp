@@ -1,4 +1,5 @@
 using Is.Assertions;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynMcp.Tools.Inspection.SearchType;
 
 namespace RoslynMcp.Tools.Test.Inspections;
@@ -44,6 +45,25 @@ public sealed class SearchType : LoadedSolutionTests<McpTool>
         var first = result.Matches[0];
         first.FullName.IsNotNull();
         first.ProjectPath.IsNotNull();
+    }
+
+    [Fact]
+    public async Task AmbiguousMatches_ResolveTypeSymbolIdsOnlyForFirstTen()
+    {
+        var result = await Sut.Execute(CancellationToken.None, query: "SearchTypeOverflow");
+
+        result.Error.IsNull();
+        result.Type.IsNull();
+        result.Matches.Count.Is(50);
+        result.Matches.Count(m => m.TypeSymbolId is not null).Is(10);
+        result.Matches.Take(10).All(m => m.TypeSymbolId is not null).IsTrue();
+        result.Matches.Skip(10).All(m => m.TypeSymbolId is null).IsTrue();
+
+        var loadType = ServiceProvider.GetRequiredService<global::RoslynMcp.Tools.Inspection.LoadType.McpTool>();
+        var resolved = await loadType.Execute(CancellationToken.None, result.Matches[0].TypeSymbolId);
+
+        resolved.Error.IsNull();
+        resolved.Symbol.IsNotNull();
     }
 
     [Fact]

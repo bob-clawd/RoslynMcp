@@ -28,7 +28,7 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
     [McpServerTool(Name = "load_member", Title = "Load Member", ReadOnly = true, Idempotent = true)]
     [Description("Use this tool when you need callers/callees or overrides/implementations of a symbol.")]
     public async Task<Result> Execute(CancellationToken cancellationToken,
-        [Description("The stable symbol ID, obtained from load_type.")]
+        [Description("The stable symbol ID, obtained from load_type or from a search_member match.")]
         string? memberSymbolId = null
         )
     {
