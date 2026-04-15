@@ -15,7 +15,7 @@ TestResults/
 *.DS_Store
 
 tmp/
-docs/
+specs/
 .nupkg/
 
 .fastembed_cache
