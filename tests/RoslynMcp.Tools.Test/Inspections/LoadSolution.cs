@@ -43,36 +43,32 @@ public class LoadSolution(ITestOutputHelper output) : Tests<McpTool>
         result.Path!.EndsWith("TestSolution.sln", StringComparison.OrdinalIgnoreCase).IsTrue();
 
         result.Projects.IsNotNull();
-        result.Projects!.Roots.IsNotNull();
-        result.Projects.Leaves.IsNotNull();
-        result.Projects.Interior.IsNotNull();
-        result.Projects.Isolated.IsNotNull();
+        var projects = result.Projects!;
 
-        result.Projects.Roots!.Select(project => project.Name).Is("ProjectApp");
-        result.Projects.Leaves!.Select(project => project.Name).Is("ProjectCore");
-        result.Projects.Interior!.Select(project => project.Name).Is("ProjectImpl");
-        result.Projects.Isolated!.Select(project => project.Name).Is(
+        projects.Roots!.Select(project => project.Name).Is("ProjectApp");
+        projects.Leaves!.Select(project => project.Name).Is("ProjectCore");
+        projects.Interior!.Select(project => project.Name).Is("ProjectImpl");
+        projects.Isolated!.Select(project => project.Name).Is(
             "FirstSolutionFailureTests",
             "MixedOutcomeTests",
             "PassingOnlyTests",
             "SecondSolutionFailureTests");
 
-        var root = result.Projects.Roots[0];
+        var root = projects.Roots[0];
         AssertPathEndsWith(root.ProjectPath, "ProjectApp", "ProjectApp.csproj");
-        root.References.IsNotNull();
         root.References!.Count.Is(2);
         AssertPathEndsWith(root.References[0], "ProjectCore", "ProjectCore.csproj");
         AssertPathEndsWith(root.References[1], "ProjectImpl", "ProjectImpl.csproj");
 
-        var leaf = result.Projects.Leaves[0];
+        var leaf = projects.Leaves[0];
         AssertPathEndsWith(leaf.ProjectPath, "ProjectCore", "ProjectCore.csproj");
         leaf.References.IsNull();
         leaf.ToJson().Contains("\"references\"", StringComparison.Ordinal).IsFalse();
 
-        AssertPathEndsWith(result.Projects.Interior[0].ProjectPath, "ProjectImpl", "ProjectImpl.csproj");
-        result.Projects.Interior[0].References.IsNotNull();
-        result.Projects.Interior[0].References!.Count.Is(1);
-        AssertPathEndsWith(result.Projects.Interior[0].References![0], "ProjectCore", "ProjectCore.csproj");
+        var interior = projects.Interior[0];
+        AssertPathEndsWith(interior.ProjectPath, "ProjectImpl", "ProjectImpl.csproj");
+        interior.References!.Count.Is(1);
+        AssertPathEndsWith(interior.References[0], "ProjectCore", "ProjectCore.csproj");
     }
 
     private static void AssertPathEndsWith(string actualPath, params string[] expectedSegments)
