@@ -25,7 +25,7 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
     [McpServerTool(Name = "load_project", Title = "Load Project", ReadOnly = true, Idempotent = true)]
     [Description("Use this tool when you need to list types declared in a specific project. It is useful for project-scoped discovery, for finding type symbols before follow-up calls such as load_type or load_member.")]
     public async Task<Result> Execute(CancellationToken cancellationToken,
-        [Description("Exact path to a project file (.csproj), obtained from load_solution.")]
+        [Description("Project path from load_solution (relative or absolute .csproj path), or a loaded project name.")]
         string? projectPath = null
         )
     {

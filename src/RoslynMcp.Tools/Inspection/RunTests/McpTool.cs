@@ -12,7 +12,7 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
     [Description("Default .NET test runner. Use this instead of 'dotnet test' unless you need unsupported CLI behavior.")]
     public async Task<Result> Execute(
         CancellationToken cancellationToken,
-        [Description("Optional execution target. Omit to run the currently loaded solution. Supports solution-relative or absolute .sln, .slnx, .csproj, or directory paths when the resolved target stays within the workspace directory.")]
+        [Description("Optional execution target. Omit to run the currently loaded solution, or the workspace directory when no solution is loaded. Supports workspace-relative or absolute .sln, .slnx, .csproj, or directory paths when the resolved target stays within the workspace directory.")]
         string? target = null,
         [Description("Optional dotnet test filter expression. Passed through to --filter semantics where practical.")]
         string? filter = null)

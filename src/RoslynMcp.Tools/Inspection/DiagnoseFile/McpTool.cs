@@ -22,7 +22,7 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
 	[Description("Get up to 10 file-local compiler error diagnostics for the given file.")]
 	public async Task<Result> Execute(
 		CancellationToken cancellationToken,
-		[Description("Path to a source file within the currently loaded solution.")]
+		[Description("Path to a source file within the currently loaded solution. Accepts an absolute path or a path relative to the workspace.")]
 		string? filePath = null)
 	{
 		if (solutionManager.Solution is not { } solution)
