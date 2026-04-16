@@ -10,13 +10,15 @@ namespace RoslynMcp.Tools.Inspection.LoadType;
 public sealed record Result(
     TypeSymbol? Symbol,
     string? Documentation,
+    IReadOnlyList<TypeSymbol> BaseTypes,
+    IReadOnlyList<TypeSymbol> Interfaces,
     IReadOnlyList<TypeSymbol> Derived,
     IReadOnlyList<TypeSymbol> Implementations,
     IReadOnlyList<MemberSymbol> Members,
     ErrorInfo? Error = null)
 {
     public static Result AsError(string message, IReadOnlyDictionary<string, string>? details = null)
-        => new(null, null, [], [], [], new ErrorInfo(message, details));
+        => new(null, null, [], [], [], [], [], new ErrorInfo(message, details));
 }
 
 [McpServerToolType]
@@ -44,22 +46,37 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
         
         return new Result(TypeSymbol.From(symbol, symbolManager, workspaceManager),
             documentation?.Summary,
+            ToBaseTypes(symbol),
+            ToInterfaces(symbol),
             ToTypes((await derivedClassesTask).Concat(await derivedInterfacesTask)),
             ToTypes(await implementationsTask),
             ToMembers(symbol.GetMembers()));
     }
 
-    private IReadOnlyList<TypeSymbol> ToTypes(IEnumerable<INamedTypeSymbol> symbols)
+    private IReadOnlyList<TypeSymbol> ToBaseTypes(INamedTypeSymbol symbol)
+    {
+        var baseTypes = new List<INamedTypeSymbol>();
+        for (var current = symbol.BaseType; current is not null; current = current.BaseType)
+            baseTypes.Add(current);
+
+        return ToTypes(baseTypes, includeMetadata: true);
+    }
+
+    private IReadOnlyList<TypeSymbol> ToInterfaces(INamedTypeSymbol symbol)
+        => ToTypes(symbol.Interfaces, includeMetadata: true);
+
+    private IReadOnlyList<TypeSymbol> ToTypes(IEnumerable<INamedTypeSymbol> symbols, bool includeMetadata = false)
     {
         var types = symbols
             .Select(symbol => TypeSymbol.From(symbol, symbolManager, workspaceManager))
-            .Where(type => !type.Location.IsNullOrEmpty())
+            .Where(type => includeMetadata || !type.Location.IsNullOrEmpty())
             .DistinctBy(type => type.SymbolId)
-            .OrderBy(type => type.Location, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(type => type.Location.IsNullOrEmpty() ? 1 : 0)
+            .ThenBy(type => type.Location, StringComparer.OrdinalIgnoreCase)
             .ThenBy(type => type.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (types.Any(type => type.Location.IsHandwritten()))
+        if (!includeMetadata && types.Any(type => type.Location.IsHandwritten()))
             types.RemoveAll(type => !type.Location.IsHandwritten());
 
         return types;
