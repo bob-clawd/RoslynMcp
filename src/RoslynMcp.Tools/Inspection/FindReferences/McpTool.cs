@@ -50,21 +50,17 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
 
         foreach (var referencedSymbol in referencedSymbols)
         {
-            foreach (var location in referencedSymbol.Locations)
+            foreach (var location in referencedSymbol.Locations.Where(l => l.Location.IsInSource))
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (!location.Location.IsInSource)
+                if (location.Document.FilePath is not { } filePath || !filePath.IsHandwritten())
                     continue;
 
-                if (location.Document.FilePath is not { } filePath || string.IsNullOrWhiteSpace(filePath))
-                    continue;
-
-                var relativePath = workspaceManager.ToRelativePathIfPossible(filePath) ?? filePath;
                 var containingType = await FindContainingType(location, semanticModels, cancellationToken).ConfigureAwait(false);
 
                 references.Add(new ResolvedReference(
-                    relativePath,
+                    workspaceManager.ToRelativePathIfPossible(filePath) ?? filePath,
                     containingType?.SymbolId,
                     containingType?.DisplayName));
             }
