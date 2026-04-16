@@ -60,21 +60,26 @@ Choose the entry point based on what you already know.
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": { "background": "transparent" }}}%%
 flowchart TD
-    ls[load_solution] --> lp[load_project]
-    lp --> lt[load_type]
-    lt --> lm[load_member]
-    lt --> fr[find_references]
-
-    ls --> st[search_type]
-    ls --> sm[search_member]
-
-    st --> lt
-    sm --> lm
-
-    lm --> fr
-    lm --> df[diagnose_file]
-    df --> rt[run_tests]
-
+    ls[load_solution]
+    lp[load_project]
+    lt[load_type]
+    lm[load_member]
+    fr[find_references]
+    st[search_type]
+    sm[search_member]
+    df[diagnose_file]
+    rt[run_tests]
+    ls -->|projectPath| lp
+    lp -->|typeSymbolId| lt
+    lt -->|memberSymbolId| lm
+    lt -->|typeSymbolId| fr
+    st -->|typeSymbolId| lt
+    sm -->|memberSymbolId| lm
+    lm -->|memberSymbolId| fr
+    ls -.-> st
+    ls -.-> sm
+    lm -.->|filePath from location| df
+    df -.-> rt
     classDef tool fill:#1f2937,stroke:#9ca3af,color:#f9fafb;
     class ls,lp,lt,lm,fr,st,sm,df,rt tool;
     linkStyle default stroke:#9ca3af,stroke-width:1.5px;
