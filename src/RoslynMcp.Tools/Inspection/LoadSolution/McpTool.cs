@@ -16,9 +16,10 @@ public sealed record Result(
 }
 
 public sealed record ProjectBuckets(
-    IReadOnlyList<ProjectEntry>? Isolated,
-    IReadOnlyList<ProjectEntry>? Boundary,
-    IReadOnlyList<ProjectEntry>? Interior);
+    IReadOnlyList<ProjectEntry>? Roots,
+    IReadOnlyList<ProjectEntry>? Leaves,
+    IReadOnlyList<ProjectEntry>? Interior,
+    IReadOnlyList<ProjectEntry>? Isolated);
 
 public sealed record ProjectEntry(
     string Name,
@@ -58,16 +59,18 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
     {
         var projects = GetProjects(solution);
 
-        var isolated = OrderIsolated(projects.Where(IsIsolated));
-        var boundary = OrderBoundary(projects.Where(IsBoundary));
+        var roots = OrderRoots(projects.Where(IsRoot));
+        var leaves = OrderLeaves(projects.Where(IsLeaf));
         var interior = OrderInterior(projects.Where(IsInterior).ToList());
+        var isolated = OrderIsolated(projects.Where(IsIsolated));
 
         var buckets = new ProjectBuckets(
-            NullIfEmpty(isolated),
-            NullIfEmpty(boundary),
-            NullIfEmpty(interior));
+            NullIfEmpty(roots),
+            NullIfEmpty(leaves),
+            NullIfEmpty(interior),
+            NullIfEmpty(isolated));
 
-        return buckets.Isolated is null && buckets.Boundary is null && buckets.Interior is null
+        return buckets.Roots is null && buckets.Leaves is null && buckets.Interior is null && buckets.Isolated is null
             ? null
             : buckets;
     }
@@ -129,26 +132,21 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
             .Select(ToEntry)
             .ToList();
 
-    private static IReadOnlyList<ProjectEntry> OrderBoundary(IEnumerable<GraphProject> projects)
-    {
-        var roots = projects
-            .Where(IsRoot)
+    private static IReadOnlyList<ProjectEntry> OrderRoots(IEnumerable<GraphProject> projects)
+        => projects
             .OrderByDescending(project => project.OutgoingCount)
             .ThenBy(project => project.Name, StringComparer.Ordinal)
             .ThenBy(project => project.ProjectPath, StringComparer.OrdinalIgnoreCase)
+            .Select(ToEntry)
             .ToList();
 
-        var leaves = projects
-            .Where(IsLeaf)
+    private static IReadOnlyList<ProjectEntry> OrderLeaves(IEnumerable<GraphProject> projects)
+        => projects
             .OrderByDescending(project => project.IncomingCount)
             .ThenBy(project => project.Name, StringComparer.Ordinal)
             .ThenBy(project => project.ProjectPath, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        return Interleave(roots, leaves)
             .Select(ToEntry)
             .ToList();
-    }
 
     private static IReadOnlyList<ProjectEntry> OrderInterior(IReadOnlyList<GraphProject> projects)
     {
@@ -260,8 +258,6 @@ public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager s
     private static bool IsRoot(GraphProject project) => project.IncomingCount == 0 && project.OutgoingCount > 0;
 
     private static bool IsLeaf(GraphProject project) => project.IncomingCount > 0 && project.OutgoingCount == 0;
-
-    private static bool IsBoundary(GraphProject project) => IsRoot(project) || IsLeaf(project);
 
     private static bool IsInterior(GraphProject project) => project.IncomingCount > 0 && project.OutgoingCount > 0;
 
