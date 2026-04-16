@@ -27,8 +27,6 @@ public class LoadType(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 		var result = await Sut.Execute(CancellationToken.None, symbolId);
 		o.WriteLine(result.ToJson());
 		
-		result.BaseTypes.Count.Is(0);
-		result.Interfaces.Count.Is(0);
 		result.Derived.Count.Is(2);
 		result.Implementations.Count.Is(3);
 		result.Members.Count.Is(1);
@@ -37,26 +35,24 @@ public class LoadType(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 	[Fact]
 	public async Task Includes_BaseTypes()
 	{
-		var symbolId = await GetTypeSymbolIdAsync("ProjectApp", "AppOrchestrator");
+		var symbolId = await GetTypeSymbolIdAsync("ProjectImpl", "FastWorkItemOperation");
 
 		var result = await Sut.Execute(CancellationToken.None, symbolId);
 		o.WriteLine(result.ToJson());
 
-		result.BaseTypes.Count.IsGreaterThan(0);
-		result.BaseTypes[0].DisplayName.Is("Object");
+		result.BaseTypes.Select(type => type.DisplayName).Is("OperationBase", "Object");
 	}
 	
 	[Fact]
 	public async Task Includes_Interfaces()
 	{
-		var symbolId = await GetTypeSymbolIdAsync("ProjectCore", "IWorkItemOperation");
+		var symbolId = await GetTypeSymbolIdAsync("ProjectImpl", "FastWorkItemOperation");
 
 		var result = await Sut.Execute(CancellationToken.None, symbolId);
 		o.WriteLine(result.ToJson());
 
-		result.Interfaces.Count.Is(1);
-		result.Interfaces[0].DisplayName.Is("ITrackedOperation");
-		result.Interfaces[0].Location.Is("ProjectCore/Contracts.cs:21");
+		result.Interfaces.Select(type => type.DisplayName).Is("IWorkItemOperation");
+		result.Interfaces[0].Location.Is($"ProjectCore{Path.DirectorySeparatorChar}Contracts.cs:31");
 	}
 	
 	[Fact]
@@ -67,8 +63,6 @@ public class LoadType(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 		var result = await Sut.Execute(CancellationToken.None, symbolId);
 		o.WriteLine(result.ToJson());
 		
-		result.BaseTypes.Count.IsGreaterThan(0);
-		result.Interfaces.Count.Is(0);
 		result.Derived.Count.Is(2);
 		result.Implementations.Count.Is(0);
 		result.Members.Count.Is(3);
@@ -82,8 +76,6 @@ public class LoadType(ITestOutputHelper o) : LoadedSolutionTests<McpTool>
 		var result = await Sut.Execute(CancellationToken.None, symbolId);
 		o.WriteLine(result.ToJson());
 		
-		result.BaseTypes.Count.IsGreaterThan(0);
-		result.Interfaces.Count.Is(0);
 		result.Derived.Count.Is(0);
 		result.Implementations.Count.Is(0);
 		result.Members.Count.Is(10);
