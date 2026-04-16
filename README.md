@@ -63,6 +63,7 @@ flowchart TD
     ls[load_solution] --> lp[load_project]
     lp --> lt[load_type]
     lt --> lm[load_member]
+    lt --> fr[find_references]
 
     ls --> st[search_type]
     ls --> sm[search_member]
@@ -70,11 +71,12 @@ flowchart TD
     st --> lt
     sm --> lm
 
+    lm --> fr
     lm --> df[diagnose_file]
     df --> rt[run_tests]
 
     classDef tool fill:#1f2937,stroke:#9ca3af,color:#f9fafb;
-    class ls,lp,lt,lm,st,sm,df,rt tool;
+    class ls,lp,lt,lm,fr,st,sm,df,rt tool;
     linkStyle default stroke:#9ca3af,stroke-width:1.5px;
 ```
 
