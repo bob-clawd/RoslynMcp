@@ -6,7 +6,7 @@ using RoslynMcp.Tools.Managers;
 namespace RoslynMcp.Tools.Inspection.RunTests;
 
 [McpServerToolType]
-public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager solutionManager) : Tool
+public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager solutionManager)
 {
     [McpServerTool(Name = "run_tests", Title = "Run Tests", ReadOnly = false, Idempotent = false)]
     [Description("Default .NET test runner. Use this instead of 'dotnet test' unless you need unsupported CLI behavior.")]

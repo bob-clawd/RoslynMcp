@@ -20,7 +20,7 @@ public sealed record Result(
 }
 
 [McpServerToolType]
-public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager solutionManager, SymbolManager symbolManager) : Tool
+public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager solutionManager, SymbolManager symbolManager)
 {
     [McpServerTool(Name = "find_references", Title = "Find References", ReadOnly = true, Idempotent = true)]
     [Description("Use this tool when you need to see which files and containing types reference a symbol.")]

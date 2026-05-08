@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
+using ModelContextProtocol.Server;
 
 namespace RoslynMcp.Tools.Extensions;
 
@@ -9,18 +10,22 @@ public static class ServiceExtensions
     {
         public IServiceCollection WithRoslynMcp() => services
             .AddImplementations<Manager>()
-            .AddImplementations<Tool>();
-        
-        private IServiceCollection AddImplementations<T>()
+            .AddTypes(GetTools());
+
+        private IServiceCollection AddTypes(IEnumerable<Type> types)
         {
-            foreach (var type in GetImplementations<T>())
+            foreach (var type in types)
                 services.AddSingleton(type);
-        
+
             return services;
         }
+
+        private IServiceCollection AddImplementations<T>() => services.AddTypes(GetImplementations<T>());
     }
     
-    public static IEnumerable<Type> GetTools() => GetImplementations<Tool>();
+    public static IEnumerable<Type> GetTools() => Assembly.GetExecutingAssembly()
+        .GetTypes()
+        .Where(type => type.IsTool());
     
     private static IEnumerable<Type> GetImplementations<T>() => Assembly.GetExecutingAssembly()
         .GetTypes()
@@ -29,5 +34,9 @@ public static class ServiceExtensions
     
     private static bool Implements<T>(this Type type) =>
         type is { IsClass: true, IsAbstract: false } && type.IsAssignableTo(typeof(T));
+
+    private static bool IsTool(this Type type) =>
+        type is { IsClass: true, IsAbstract: false } &&
+        type.GetCustomAttribute<McpServerToolTypeAttribute>(false) is not null;
 
 }

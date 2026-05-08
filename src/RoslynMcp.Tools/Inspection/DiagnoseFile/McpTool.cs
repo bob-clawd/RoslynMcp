@@ -14,7 +14,7 @@ public sealed record Result(IReadOnlyList<Diagnostic> Errors, ErrorInfo? Error =
 }
 
 [McpServerToolType]
-public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager solutionManager) : Tool
+public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager solutionManager)
 {
 	private const int MaxErrors = 10;
 

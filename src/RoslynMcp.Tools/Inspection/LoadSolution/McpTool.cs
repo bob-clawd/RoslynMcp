@@ -27,7 +27,7 @@ public sealed record ProjectEntry(
     IReadOnlyList<string>? References = null);
 
 [McpServerToolType]
-public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager solutionManager) : Tool
+public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager solutionManager)
 {
     [McpServerTool(Name = "load_solution", Title = "Load Solution", ReadOnly = false, Idempotent = false)]
     [Description("Use this tool when you need to start working with a .NET solution and no solution has been loaded yet. This must be the first tool called in a session before any code analysis or navigation tools can be used.")]
