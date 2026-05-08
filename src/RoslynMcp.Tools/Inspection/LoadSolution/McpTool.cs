@@ -30,7 +30,7 @@ public sealed record ProjectEntry(
 public sealed class McpTool(WorkspaceManager workspaceManager, SolutionManager solutionManager)
 {
     [McpServerTool(Name = "load_solution", Title = "Load Solution", ReadOnly = false, Idempotent = false)]
-    [Description("Use this tool when you need to start working with a .NET solution and no solution has been loaded yet. This must be the first tool called in a session before any code analysis or navigation tools can be used.")]
+    [Description("Use this tool when you need to start working with a .NET solution and no solution has been loaded yet. This must be the first tool called in a session before any code analysis or navigation tools can be used. Opening large or complex solutions can take a while, so use a generous tool/request timeout if your client supports it.")]
     public async Task<Result> Execute(CancellationToken cancellationToken,
         [Description("(optional): Absolute path to a `.sln` file, or to a directory used as the recursive discovery root for `.sln`/`.slnx` files. If omitted, the tool will auto-detect from the current workspace.")]
         string? solutionHintPath = null)
