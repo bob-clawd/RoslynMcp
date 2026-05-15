@@ -34,7 +34,7 @@
         <PackageOutputPath>../../.nupkg</PackageOutputPath>
         <PackageIcon>icon.png</PackageIcon>
         <PackageReadmeFile>README.md</PackageReadmeFile>
-        <PackageTags>dotnet8;mcp;agent;ai;vibe;coding;C#;grep;glob</PackageTags>
+        <PackageTags>mcp;agent;ai;vibe;coding;C#;grep;glob</PackageTags>
     </PropertyGroup>
     <ItemGroup>
         <None Include="..\..\assets\icon.png"
